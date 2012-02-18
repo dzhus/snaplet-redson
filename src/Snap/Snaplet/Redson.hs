@@ -96,6 +96,7 @@ modelKey model id = B.concat [model, ":", id]
 getModelKey :: MonadSnap m => m B.ByteString
 getModelKey = liftM2 modelKey getModelName getModelId
 
+
 ------------------------------------------------------------------------------
 -- | Get Redis key which stores id counter for model
 modelIdKey :: B.ByteString -> B.ByteString
@@ -109,9 +110,8 @@ modelTimeline model = B.concat ["global:", model, ":timeline"]
 
 
 ------------------------------------------------------------------------------
--- | Builder for WebSockets message containing JSON describing creation or
--- deletion of model instance.
---
+-- | Builder for WebSockets message containing JSON describing
+-- creation or deletion of model instance.
 modelMessage :: B.ByteString 
              -> (B.ByteString 
                  -> B.ByteString 
@@ -216,6 +216,7 @@ read' = ifTop $ do
   writeLBS (hgetallToJson r)
   return ()
 
+
 ------------------------------------------------------------------------------
 -- | Serve list of 10 latest instances stored in Redis.
 --
@@ -258,6 +259,7 @@ update = ifTop $ do
   runRedisDB database $ hmset key (fromJust j)
   modifyResponse $ setResponseCode 204
   return()
+
 
 ------------------------------------------------------------------------------
 -- | Delete instance from Redis (including timeline).
