@@ -15,9 +15,9 @@ where
 
 import Prelude hiding (concat)
 
-import Control.Applicative
-import Control.Monad.Trans
 import Control.Monad.State
+import Control.Monad.Trans
+import Data.Functor
 
 import Data.Aeson as A
 
@@ -57,20 +57,6 @@ data Redson = Redson
              }
 
 makeLens ''Redson
-
-
-------------------------------------------------------------------------------
--- | Render empty form for model.
-emptyForm :: HasHeist b => Handler b Redson ()
-emptyForm = ifTop $ render "index"
-
-
-------------------------------------------------------------------------------
--- | Serve JSON metamodel.
-metamodel :: Handler b Redson ()
-metamodel = ifTop $ do
-  modelName <- liftM BU.toString getModelName
-  serveFile $ "resources/static/js/models/" ++ modelName ++ ".js"
 
 
 ------------------------------------------------------------------------------
@@ -292,9 +278,7 @@ delete = ifTop $ do
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
 routes :: HasHeist b => [(B.ByteString, Handler b Redson ())]
-routes = [ (":model/", method GET emptyForm)
-         , (":model/model", method GET metamodel)
-         , (":model/timeline", method GET timeline)
+routes = [ (":model/timeline", method GET timeline)
          , (":model/events", modelEvents)
          , (":model", method POST create)
          , (":model/:id", method GET read')
