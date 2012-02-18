@@ -35,10 +35,8 @@ import Data.Maybe
 
 import Snap.Core
 import Snap.Snaplet
-import Snap.Snaplet.Heist
 import Snap.Snaplet.RedisDB
 import Snap.Util.FileServe
-import Text.Templating.Heist
 
 import Network.WebSockets
 import Network.WebSockets.Snap
@@ -183,7 +181,7 @@ create = ifTop $ do
 
 ------------------------------------------------------------------------------
 -- | Read instance from Redis.
-read' :: HasHeist b => Handler b Redson ()
+read' :: Handler b Redson ()
 read' = ifTop $ do
   -- Pass to index page handler (Snap routing bug workaround)
   id <- fromParam "id"
@@ -207,7 +205,7 @@ read' = ifTop $ do
 -- | Serve list of 10 latest instances stored in Redis.
 --
 -- *TODO*: Adjustable item limit.
-timeline :: HasHeist b => Handler b Redson ()
+timeline :: Handler b Redson ()
 timeline = ifTop $ do
   model <- getModelName
 
@@ -225,7 +223,7 @@ timeline = ifTop $ do
 ------------------------------------------------------------------------------
 -- | WebSockets handler which pushes instance creation/deletion events
 -- to client.
-modelEvents :: HasHeist b => Handler b Redson ()
+modelEvents :: Handler b Redson ()
 modelEvents = ifTop $ do
   ps <- gets _events
   liftSnap $ runWebSocketsSnap (\r -> do
@@ -277,7 +275,7 @@ delete = ifTop $ do
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
-routes :: HasHeist b => [(B.ByteString, Handler b Redson ())]
+routes :: [(B.ByteString, Handler b Redson ())]
 routes = [ (":model/timeline", method GET timeline)
          , (":model/events", modelEvents)
          , (":model", method POST create)
@@ -289,7 +287,7 @@ routes = [ (":model/timeline", method GET timeline)
 
 ------------------------------------------------------------------------------
 -- | Connect to Redis and set routes.
-redsonInit :: HasHeist b => SnapletInit b Redson
+redsonInit :: SnapletInit b Redson
 redsonInit = makeSnaplet "redson" "CRUD for JSON data with Redis storage" Nothing $
           do
             r <- nestSnaplet "" database $ redisDBInit defaultConnectInfo

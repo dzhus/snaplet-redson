@@ -31,7 +31,6 @@ library
     data-lens           >= 2.0.1 && < 2.1,
     data-lens-template  == 2.1.*,
     hedis               == 0.3.*,
-    heist               == 0.7.*,
     mtl                 == 2.*,
     snap                >= 0.7.1 && < 0.8,
     snap-core           == 0.7.*,
