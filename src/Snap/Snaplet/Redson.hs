@@ -3,12 +3,14 @@
 
 {-|
 
-Backbone.sync handler snaplet with Redis storage.
+CRUD for JSON data with Redis storage.
+
+Can be used as Backbone.sync backend.
 
 -}
 
 module Snap.Snaplet.Redson (Redson
-                           , redboneInit)
+                           , redsonInit)
 where
 
 import Prelude hiding (concat)
@@ -46,12 +48,6 @@ import Database.Redis
 
 import Snap.Snaplet.Redson.Util
 
-
-data Event = Create | Update | Delete
-
-------------------------------------------------------------------------------
--- | Event which can occur to model instance.
-data ModelEvent = ModelEvent String String Event
 
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
@@ -137,8 +133,8 @@ deletionMessage = modelMessage "delete"
 ------------------------------------------------------------------------------
 -- | Encode Redis HGETALL reply to B.ByteString with JSON.
 --
--- @internal Note using explicit B.ByteString type over BS s as
--- suggested by redis because BS s doesn't imply ToJSON s
+-- Note using explicit B.ByteString type over BS s as suggested by
+-- redis because BS s doesn't imply ToJSON s.
 hgetallToJson :: [(B.ByteString, B.ByteString)] -> BZ.ByteString
 hgetallToJson r = A.encode $ M.fromList r
 
@@ -147,7 +143,7 @@ hgetallToJson r = A.encode $ M.fromList r
 -- | Decode B.ByteString with JSON to list of hash keys & values for
 -- Redis HMSET
 --
--- @return Nothing if parsing failed
+-- Return Nothing if parsing failed.
 jsonToHsetall :: BZ.ByteString -> Maybe [(B.ByteString, B.ByteString)]
 jsonToHsetall s =
     let
@@ -164,10 +160,11 @@ jsonToHsetall s =
 
 ------------------------------------------------------------------------------
 -- | Create new instance in Redis.
+-- 
+-- *TODO*: Use readRequestBody
 create :: Handler b Redson ()
 create = ifTop $ do
   -- Parse request body to list of pairs
-  -- @todo Use readRequestBody
   j <- jsonToHsetall <$> getRequestBody
   when (isNothing j)
        serverError
@@ -222,7 +219,7 @@ read' = ifTop $ do
 ------------------------------------------------------------------------------
 -- | Serve list of 10 latest instances stored in Redis.
 --
--- @todo Adjustable item limit.
+-- *TODO*: Adjustable item limit.
 timeline :: HasHeist b => Handler b Redson ()
 timeline = ifTop $ do
   model <- getModelName
@@ -306,8 +303,8 @@ routes = [ (":model/", method GET emptyForm)
 
 ------------------------------------------------------------------------------
 -- | Connect to Redis and set routes.
-redboneInit :: HasHeist b => SnapletInit b Redson
-redboneInit = makeSnaplet "redbone" "Backbone.js backend with Redis storage" Nothing $
+redsonInit :: HasHeist b => SnapletInit b Redson
+redsonInit = makeSnaplet "redson" "CRUD for JSON data with Redis storage" Nothing $
           do
             r <- nestSnaplet "" database $ redisDBInit defaultConnectInfo
             p <- liftIO PS.newPubSub
