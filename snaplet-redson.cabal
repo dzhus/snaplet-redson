@@ -17,10 +17,11 @@ source-repository head
   location: git://github.com/dzhus/snaplet-redson.git
 
 library
-  ghc-options: -Wall
+  ghc-options: -Wall -fno-warn-unused-do-bind
   hs-source-dirs: src
 
   exposed-modules:      Snap.Snaplet.Redson
+  other-modules:        Snap.Snaplet.Redson.Util
   
   build-depends:        
     aeson               == 0.6.*,
