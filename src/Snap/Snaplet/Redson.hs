@@ -290,7 +290,7 @@ routes = [ (":model/timeline", method GET timeline)
 redsonInit :: SnapletInit b Redson
 redsonInit = makeSnaplet "redson" "CRUD for JSON data with Redis storage" Nothing $
           do
-            r <- nestSnaplet "" database $ redisDBInit defaultConnectInfo
+            r <- nestSnaplet "db" database $ redisDBInit defaultConnectInfo
             p <- liftIO PS.newPubSub
             addRoutes routes
             return $ Redson r p
