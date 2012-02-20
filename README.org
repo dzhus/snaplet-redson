@@ -7,14 +7,8 @@
 ** CRUD
    We implement generic CRUD for our forms using Redson snaplet, which
    is best explained by its routes (assuming they're installed in
-   top-level snaplet under `/rs` URL).
-
-   `/rs/<formid>/` serves title page (which is in fact the same for
-   any <formid>) with all the code required to process metamodels on
-   client side. Client JavaScript further requests metamodel
-   description in bare JSON using `/rs/<formid>/model/` URL, from
-   which the server picks `<formid>.js` metamodel and sends it back to
-   client.
+   top-level snaplet under `/_` URL; prefix may be changed using
+   nestSnaplet in parent initializer).
 
    All interactions with server use JSON as primary format, which is
    what Backbone uses by default for fetch(), save() and destroy()
@@ -44,7 +38,7 @@
      
      Server request:
 
-     : curl localhost:8000/rs/scp/ -X POST -d "{\"title\":\"Able\", \"code\":\"076\", \"class\":\"Keter\"}"
+     : curl localhost:8000/_/scp/ -X POST -d "{\"title\":\"Able\", \"code\":\"076\", \"class\":\"Keter\"}"
 
      What server did in Redis:
 
@@ -67,7 +61,7 @@
 
      Server request:
 
-     : curl localhost:8000/rs/scp/24/ -X GET
+     : curl localhost:8000/_/scp/24/ -X GET
 
      Server response:
 
@@ -81,7 +75,7 @@
 
      What is sent to server:
 
-     : curl localhost:8000/rs/scp/24/ -X PUT -d "{\"title\":\"Able\", \"code\":\"076-2\", \"class\":\"Keter\", \"description\":\"Really nasty thing\"}"
+     : curl localhost:8000/_/scp/24/ -X PUT -d "{\"title\":\"Able\", \"code\":\"076-2\", \"class\":\"Keter\", \"description\":\"Really nasty thing\"}"
 
      Server response is 204 (success, No content) in case the instance
      previously existed and 404 if not.
@@ -93,7 +87,7 @@
 
      Server request:
 
-     : curl localhost:8000/rs/scp/24/ -X DELETE
+     : curl localhost:8000/_/scp/24/ -X DELETE
 
      Redis deletes the key:
 
@@ -110,10 +104,10 @@
     timeline, which is a list with id's of instances stored in DB
     (in order of creation).
 
-    `/rs/scp/timeline/` serves JSON list of last N (currently 10)
+    `/_/scp/timeline/` serves JSON list of last N (currently 10)
     timeline items for metamodel "scp":
 
-    : curl localhost:8000/rs/scp/timeline/ -X GET
+    : curl localhost:8000/_/scp/timeline/ -X GET
     : ["39","38","37","36","35","34","33","32","31","30"]
 
     If instance is removed from Redis, corresponding timeline entry is
@@ -123,7 +117,7 @@
      
 *** WebSockets notifications
 
-    `/rs/<modelname>/events/` provides instance creation/deletion
+    `/_/<modelname>/events/` provides instance creation/deletion
     notifications through WebSockets interface. Events are transmitted
     to clients in JSON format with fields `event`, `model` and `id`,
     where `event` is either `create` or `delete`.
@@ -139,7 +133,7 @@
    fails: https://github.com/snapframework/snap-core/issues/120
 
    Currently we have to use a workaround to correctly direct
-   `/rs/<formname>/` requests to emptyPage handler by checking `id`
+   `/_/<formname>/` requests to emptyPage handler by checking `id`
    parameter value in read handler.
     
 ** TODO Configurable pool size
