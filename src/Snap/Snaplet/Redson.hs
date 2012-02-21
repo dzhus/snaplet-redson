@@ -233,6 +233,8 @@ modelEvents = ifTop $ do
 
 ------------------------------------------------------------------------------
 -- | Update existing instance in Redis.
+-- 
+-- *TODO* Report 201 if previously existed
 update :: Handler b Redson ()
 update = ifTop $ do
   j <- jsonToHsetall <$> getRequestBody
