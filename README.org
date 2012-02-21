@@ -152,4 +152,5 @@
    - [ ] publish events only for respective model under
      `<model>/events` entry point (requires addressing extension for
      PubSub or multiple PubSubs)
+   - [ ] possible use native Redis' publish/subscribe mechanism
 
