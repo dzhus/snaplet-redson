@@ -138,11 +138,6 @@
     
 ** TODO Configurable pool size
 
-** MAYBE CRUD efficiency
-   Backbone provides means of expecting which model fields really
-   changed upon `change` event. Perhaps we can use it to include only
-   changed fields in JSON sent to server upon model updates.
-
 ** TODO Access control
    Per-field permissions (r/w) for different user groups (roles).
    c/r/u/d permissions on models for roles.

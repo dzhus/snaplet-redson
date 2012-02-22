@@ -1,0 +1,19 @@
+#    -*- mode: org -*-
+
+
+Archived entries from file /home/sphinx/projects/snaplet-redson/README.org
+
+
+* DONE CRUD efficiency
+  CLOSED: [2012-02-21 Срд 23:11]
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2012-02-22 Срд 23:12
+  :ARCHIVE_FILE: ~/projects/snaplet-redson/README.org
+  :ARCHIVE_OLPATH: To do
+  :ARCHIVE_CATEGORY: README
+  :ARCHIVE_TODO: DONE
+  :END:
+  Backbone provides means of expecting which model fields really
+  changed upon `change` event. Perhaps we can use it to include only
+  changed fields in JSON sent to server upon model updates.
+
