@@ -35,6 +35,7 @@ import Data.Maybe
 
 import Snap.Core
 import Snap.Snaplet
+import Snap.Snaplet.Auth
 import Snap.Snaplet.RedisDB
 import Snap.Util.FileServe
 
@@ -49,9 +50,10 @@ import Snap.Snaplet.Redson.Util
 
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
-data Redson = Redson
+data Redson b = Redson
              { _database :: Snaplet RedisDB
              , _events :: PS.PubSub Hybi10
+             , _auth :: Lens b (Snaplet (AuthManager b))
              }
 
 makeLens ''Redson
@@ -146,7 +148,7 @@ jsonToHsetall s =
 -- | Create new instance in Redis.
 -- 
 -- *TODO*: Use readRequestBody
-create :: Handler b Redson ()
+create :: Handler b (Redson b) ()
 create = ifTop $ do
   -- Parse request body to list of pairs
   j <- jsonToHsetall <$> getRequestBody
@@ -181,7 +183,7 @@ create = ifTop $ do
 
 ------------------------------------------------------------------------------
 -- | Read instance from Redis.
-read' :: Handler b Redson ()
+read' :: Handler b (Redson b) ()
 read' = ifTop $ do
   -- Pass to index page handler (Snap routing bug workaround)
   id <- fromParam "id"
@@ -205,7 +207,7 @@ read' = ifTop $ do
 -- | Serve list of 10 latest instances stored in Redis.
 --
 -- *TODO*: Adjustable item limit.
-timeline :: Handler b Redson ()
+timeline :: Handler b (Redson b) ()
 timeline = ifTop $ do
   model <- getModelName
 
@@ -223,7 +225,7 @@ timeline = ifTop $ do
 ------------------------------------------------------------------------------
 -- | WebSockets handler which pushes instance creation/deletion events
 -- to client.
-modelEvents :: Handler b Redson ()
+modelEvents :: Handler b (Redson b) ()
 modelEvents = ifTop $ do
   ps <- gets _events
   liftSnap $ runWebSocketsSnap (\r -> do
@@ -235,7 +237,7 @@ modelEvents = ifTop $ do
 -- | Update existing instance in Redis.
 -- 
 -- *TODO* Report 201 if previously existed
-update :: Handler b Redson ()
+update :: Handler b (Redson b) ()
 update = ifTop $ do
   j <- jsonToHsetall <$> getRequestBody
   when (isNothing j)
@@ -249,7 +251,7 @@ update = ifTop $ do
 
 ------------------------------------------------------------------------------
 -- | Delete instance from Redis (including timeline).
-delete :: Handler b Redson ()
+delete :: Handler b (Redson b) ()
 delete = ifTop $ do
   id <- getModelId
   model <- getModelName
@@ -277,7 +279,7 @@ delete = ifTop $ do
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
-routes :: [(B.ByteString, Handler b Redson ())]
+routes :: [(B.ByteString, Handler b (Redson b) ())]
 routes = [ (":model/timeline", method GET timeline)
          , (":model/events", modelEvents)
          , (":model", method POST create)
@@ -289,10 +291,14 @@ routes = [ (":model/timeline", method GET timeline)
 
 ------------------------------------------------------------------------------
 -- | Connect to Redis and set routes.
-redsonInit :: SnapletInit b Redson
-redsonInit = makeSnaplet "redson" "CRUD for JSON data with Redis storage" Nothing $
+redsonInit :: Lens b (Snaplet (AuthManager b))
+           -> SnapletInit b (Redson b)
+redsonInit topAuth = makeSnaplet 
+                     "redson" 
+                     "CRUD for JSON data with Redis storage" 
+                     Nothing $
           do
             r <- nestSnaplet "db" database $ redisDBInit defaultConnectInfo
             p <- liftIO PS.newPubSub
             addRoutes routes
-            return $ Redson r p
+            return $ Redson r p topAuth
