@@ -155,10 +155,16 @@ jsonToHmset s =
 -- *TODO*: Use readRequestBody
 create :: Handler b (Redson b) ()
 create = ifTop $ do
+  s@(au, mdl) <- getSecurity
+  checkSecurity s
+
   -- Parse request body to list of pairs
   j <- jsonToHmset <$> getRequestBody
   when (isNothing j)
        serverError
+
+  when (not $ checkWrite (fromJust au) (fromJust mdl) (fromJust j))
+       forbidden
 
   model <- getModelName
   newId <- runRedisDB database $ do
@@ -224,6 +230,9 @@ read' = ifTop $ do
   when (B.null id)
        pass
 
+  s@(au, mdl) <- getSecurity
+  checkSecurity s
+
   key <- getModelKey
   r <- runRedisDB database $ do
     Right r <- hgetall key
@@ -233,7 +242,7 @@ read' = ifTop $ do
        notFound
 
   modifyResponse $ setContentType "application/json"
-  writeLBS (hgetallToJson r)
+  writeLBS $ hgetallToJson (filterUnreadable (fromJust au) (fromJust mdl) r)
   return ()
 
 
@@ -273,9 +282,16 @@ modelEvents = ifTop $ do
 -- *TODO* Report 201 if previously existed
 update :: Handler b (Redson b) ()
 update = ifTop $ do
+  s@(au, mdl) <- getSecurity
+  checkSecurity s
+
+  -- Parse request body to list of pairs
   j <- jsonToHmset <$> getRequestBody
   when (isNothing j)
        serverError
+
+  when (not $ checkWrite (fromJust au) (fromJust mdl) (fromJust j))
+       forbidden
 
   key <- getModelKey
   runRedisDB database $ hmset key (fromJust j)
@@ -285,8 +301,14 @@ update = ifTop $ do
 
 ------------------------------------------------------------------------------
 -- | Delete instance from Redis (including timeline).
+--
+-- *TODO*: Support whole-metamodel permission to delete model
+-- instance.
 delete :: Handler b (Redson b) ()
 delete = ifTop $ do
+  s@(au, mdl) <- getSecurity
+  checkSecurity s
+
   id <- getModelId
   model <- getModelName
   key <- getModelKey

@@ -46,3 +46,12 @@ unauthorized = do
   modifyResponse $ setResponseCode 401
   r <- getResponse
   finishWith r
+
+
+------------------------------------------------------------------------------
+-- | Short-circuit MonadSnap flow with 403 Forbidden
+forbidden :: MonadSnap m => m ()
+forbidden = do
+  modifyResponse $ setResponseCode 403
+  r <- getResponse
+  finishWith r
