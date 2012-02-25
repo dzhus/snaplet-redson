@@ -94,7 +94,7 @@ instance FromJSON Field where
       v .:? "choice"                    <*>
       v .:? "default"                   <*>
       v .:? "canRead" .!= Nobody        <*>
-      v .:? "canEdit" .!= Nobody
+      v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse field properties"
 
 instance ToJSON Field where
