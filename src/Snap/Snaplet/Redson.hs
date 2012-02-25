@@ -319,12 +319,23 @@ modelEvents = ifTop $ do
                                   acceptRequest r
                                   PS.subscribe ps)
 
+------------------------------------------------------------------------------
+-- | Serve JSON metamodel with respect to current user and field
+-- permissions.
+--
+-- TODO: Cache this wrt user permissions cache.
+metamodel = ifTop $ do
+  withCheckSecurity $ \au mdl -> do
+    modifyResponse $ setContentType "application/json"
+    writeLBS (A.encode $ stripMetamodel au mdl)
+
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
 routes :: [(B.ByteString, Handler b (Redson b) ())]
 routes = [ (":model/timeline", method GET timeline)
          , (":model/events", modelEvents)
+         , (":model/model", method GET metamodel)
          , (":model", method POST create)
          , (":model/:id", method GET read')
          , (":model/:id", method PUT update)
