@@ -22,9 +22,8 @@ import Data.Functor
 import Data.Aeson as A
 
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BZ (ByteString, readFile)
-import qualified Data.ByteString.UTF8 as BU (fromString, toString)
-import qualified Data.ByteString.Lazy.UTF8 as BZU (fromString)
+import qualified Data.ByteString.Lazy as LB (ByteString, readFile)
+import qualified Data.ByteString.UTF8 as BU (fromString)
 
 import Data.Configurator
 
@@ -126,7 +125,7 @@ deletionMessage = modelMessage "delete"
 --
 -- Note using explicit B.ByteString type over BS s as suggested by
 -- redis because BS s doesn't imply ToJSON s.
-hgetallToJson :: Commit -> BZ.ByteString
+hgetallToJson :: Commit -> LB.ByteString
 hgetallToJson r = A.encode $ M.fromList r
 
 
@@ -135,7 +134,7 @@ hgetallToJson r = A.encode $ M.fromList r
 -- Redis HMSET
 --
 -- Return Nothing if parsing failed.
-jsonToHmset :: BZ.ByteString -> Maybe Commit
+jsonToHmset :: LB.ByteString -> Maybe Commit
 jsonToHmset s =
     let
         j = A.decode s
@@ -223,7 +222,7 @@ timeline = ifTop $ do
   modifyResponse $ setContentType "application/json"
   writeLBS (enc' r)
     where
-        enc' :: [B.ByteString] -> BZ.ByteString
+        enc' :: [B.ByteString] -> LB.ByteString
         enc' r = A.encode r
 
 
@@ -302,7 +301,7 @@ loadMetamodels :: FilePath -> IO (M.Map MetamodelName Metamodel)
 loadMetamodels dir = 
     let
         parseModel filename = do
-              json <- BZ.readFile filename
+              json <- LB.readFile filename
               case (A.decode json) of
                 Just model -> return model
                 Nothing -> error $ "Could not parse " ++ filename
