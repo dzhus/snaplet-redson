@@ -57,42 +57,29 @@ instance FromJSON Field where
     parseJSON _          = error "Unexpected input"
 
 
--- | Get list of metamodel fields writable by user.
+-- | Get lists of metamodel fields which are readable and writable by
+-- given user.
 --
 -- TODO: Cache this.
-getWritableFields :: AuthUser -> Metamodel -> [FieldName]
-getWritableFields user model =
+getFieldPermissions :: AuthUser -> Metamodel -> ([FieldName], [FieldName])
+getFieldPermissions user model =
     let
-        writeRoles :: Field -> [Role]
-        writeRoles f = union (canRead f) (canWrite f)
+        -- Get names of metamodel fields for which the given function
+        -- has non-null intersection with user roles
+        getFields getRoles =
+            map name $
+                filter (\field -> not $ null $
+                                  intersect (getRoles field) (userRoles user))
+                    (fields model)
     in
-      map name $
-          filter (\field -> not $
-                            null $
-                            intersect (writeRoles field) (userRoles user))
-                     (fields model)
-
--- | Get list of metamodel fields readable by user.
---
--- TODO: Cache this.
-getReadableFields :: AuthUser -> Metamodel -> [FieldName]
-getReadableFields user model =
-    let
-        readRoles :: Field -> [Role]
-        readRoles f = canRead f
-    in
-      map name $
-          filter (\field -> not $
-                            null $
-                            intersect (readRoles field) (userRoles user))
-                     (fields model)
+      (getFields canRead, getFields (\f -> union (canRead f) (canWrite f)))
 
 
 -- | Check permissions to write the given set of metamodel fields.
 checkWrite :: AuthUser -> Metamodel -> Commit -> Bool
 checkWrite user model commit =
     let
-        writables = getWritableFields user model
+        writables = snd $ getFieldPermissions user model
     in
       null $ intersect (map fst commit) writables
 
@@ -101,6 +88,6 @@ checkWrite user model commit =
 filterUnreadable :: AuthUser -> Metamodel -> Commit -> Commit
 filterUnreadable user model commit =
     let
-        readables = getReadableFields user model
+        readables = fst $ getFieldPermissions user model
     in
       filter (\(k, v) -> elem k readables) commit

@@ -114,22 +114,18 @@ withAuth action = do
 
 
 ------------------------------------------------------------------------------
--- | Try to get current user and metamodel of request.
-getSecurity :: Handler b (Redson b) (Maybe AuthUser, Maybe Metamodel)
-getSecurity = do
+-- | Reject request if no user is logged in or metamodel is unknown,
+-- otherwise perform given handler action with user and metamodel as
+-- arguments.
+withCheckSecurity :: (AuthUser -> Metamodel -> Handler b (Redson b) ())
+                  -> Handler b (Redson b) ()
+withCheckSecurity action = do
   au <- withAuth currentUser
   m <- getMetamodel
-  return (au, m)
-
-
-------------------------------------------------------------------------------
--- | Reject request if no user is logged in or metamodel is unknown.
-checkSecurity :: (Maybe AuthUser, Maybe Metamodel) -> Handler b (Redson b) ()
-checkSecurity (au, m) = do
   case (au, m) of
     (Nothing, _) -> unauthorized
-    (_, Nothing) -> notFound
-    (_, _) -> return ()
+    (_, Nothing) -> forbidden
+    (Just user, Just model) -> action user model
 
 
 ------------------------------------------------------------------------------
@@ -187,41 +183,38 @@ jsonToHmset s =
 -- *TODO*: Use readRequestBody
 create :: Handler b (Redson b) ()
 create = ifTop $ do
-  s@(au, mdl) <- getSecurity
-  checkSecurity s
+  withCheckSecurity $ \au mdl -> do
+    -- Parse request body to list of pairs
+    r <- jsonToHmset <$> getRequestBody
+    case r of
+      Nothing -> serverError
+      Just j -> do
+        when (not $ checkWrite au mdl j)
+             forbidden
 
-  -- Parse request body to list of pairs
-  j <- jsonToHmset <$> getRequestBody
-  when (isNothing j)
-       serverError
+        name <- getModelName
+        newId <- runRedisDB database $ do
+          -- Take id from global:model:id
+          Right n <- incr $ modelIdKey name
+          newId <- return $ (BU.fromString . show) n
 
-  when (not $ checkWrite (fromJust au) (fromJust mdl) (fromJust j))
-       forbidden
+          -- Save new instance
+          _ <- hmset (modelKey name newId) j
+          _ <- lpush (modelTimeline name) [newId]
+          return newId
 
-  model <- getModelName
-  newId <- runRedisDB database $ do
-    -- Take id from global:model:id
-    Right n <- incr $ modelIdKey model
-    newId <- return $ (BU.fromString . show) n
+        ps <- gets _events
+        liftIO $ PS.publish ps $ creationMessage name newId
 
-    -- Save new instance
-    _ <- hmset (modelKey model newId) (fromJust j)
-    _ <- lpush (modelTimeline model) [newId]
-    return newId
-
-  ps <- gets _events
-
-  liftIO $ PS.publish ps $ creationMessage model newId
-
-  -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.5:
-  --
-  -- the response SHOULD be 201 (Created) and contain an entity which
-  -- describes the status of the request and refers to the new
-  -- resource
-  modifyResponse $ (setContentType "application/json" . setResponseCode 201)
-  -- Tell client new instance id in response JSON.
-  writeLBS $ A.encode $ M.fromList $ ("id", newId):(fromJust j)
-  return ()
+        -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.5:
+        --
+        -- the response SHOULD be 201 (Created) and contain an entity which
+        -- describes the status of the request and refers to the new
+        -- resource
+        modifyResponse $ (setContentType "application/json" . setResponseCode 201)
+        -- Tell client new instance id in response JSON.
+        writeLBS $ A.encode $ M.fromList $ ("id", newId):j
+        return ()
 
 
 ------------------------------------------------------------------------------
@@ -233,20 +226,18 @@ read' = ifTop $ do
   when (B.null id)
        pass
 
-  s@(au, mdl) <- getSecurity
-  checkSecurity s
+  withCheckSecurity $ \au mdl -> do
+    key <- getModelKey
+    r <- runRedisDB database $ do
+      Right r <- hgetall key
+      return r
 
-  key <- getModelKey
-  r <- runRedisDB database $ do
-    Right r <- hgetall key
-    return r
+    when (null r)
+         notFound
 
-  when (null r)
-       notFound
-
-  modifyResponse $ setContentType "application/json"
-  writeLBS $ hgetallToJson (filterUnreadable (fromJust au) (fromJust mdl) r)
-  return ()
+    modifyResponse $ setContentType "application/json"
+    writeLBS $ hgetallToJson (filterUnreadable au mdl r)
+    return ()
 
 
 ------------------------------------------------------------------------------
@@ -255,55 +246,48 @@ read' = ifTop $ do
 -- *TODO* Report 201 if previously existed
 update :: Handler b (Redson b) ()
 update = ifTop $ do
-  s@(au, mdl) <- getSecurity
-  checkSecurity s
+  withCheckSecurity $ \au mdl -> do
+    -- Parse request body to list of pairs
+    r <- jsonToHmset <$> getRequestBody
+    case r of
+      Nothing -> serverError
+      Just j -> do
+        when (not $ checkWrite au mdl j)
+             forbidden
 
-  -- Parse request body to list of pairs
-  j <- jsonToHmset <$> getRequestBody
-  when (isNothing j)
-       serverError
-
-  when (not $ checkWrite (fromJust au) (fromJust mdl) (fromJust j))
-       forbidden
-
-  key <- getModelKey
-  runRedisDB database $ hmset key (fromJust j)
-  modifyResponse $ setResponseCode 204
-  return ()
+        key <- getModelKey
+        runRedisDB database $ hmset key j
+        modifyResponse $ setResponseCode 204
+        return ()
 
 
 ------------------------------------------------------------------------------
 -- | Delete instance from Redis (including timeline).
---
--- *TODO*: Support whole-metamodel permission to delete model
--- instance.
 delete :: Handler b (Redson b) ()
 delete = ifTop $ do
-  s@(au, mdl) <- getSecurity
-  checkSecurity s
+  withCheckSecurity $ \_ _ -> do
+    id <- getModelId
+    name <- getModelName
+    key <- getModelKey
 
-  id <- getModelId
-  model <- getModelName
-  key <- getModelKey
+    r <- runRedisDB database $ do
+      -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.7
+      --
+      -- A successful response SHOULD be 200 (OK) if the response includes
+      -- an entity describing the status
+      Right r <- hgetall key
+      return r
 
-  r <- runRedisDB database $ do
-    -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.7
-    --
-    -- A successful response SHOULD be 200 (OK) if the response includes
-    -- an entity describing the status
-    Right r <- hgetall key
-    return r
+    when (null r)
+         notFound
 
-  when (null r)
-       notFound
+    runRedisDB database $ lrem (modelTimeline name) 1 id >> del [key]
 
-  runRedisDB database $ lrem (modelTimeline model) 1 id >> del [key]
+    modifyResponse $ setContentType "application/json"
+    writeLBS (hgetallToJson r)
 
-  modifyResponse $ setContentType "application/json"
-  writeLBS (hgetallToJson r)
-
-  ps <- gets _events
-  liftIO $ PS.publish ps $ deletionMessage model id
+    ps <- gets _events
+    liftIO $ PS.publish ps $ deletionMessage name id
 
 
 ------------------------------------------------------------------------------
@@ -312,10 +296,10 @@ delete = ifTop $ do
 -- *TODO*: Adjustable item limit.
 timeline :: Handler b (Redson b) ()
 timeline = ifTop $ do
-  model <- getModelName
+  name <- getModelName
 
   r <- runRedisDB database $ do
-    Right r <- lrange (modelTimeline model) 0 9
+    Right r <- lrange (modelTimeline name) 0 9
     return r
 
   modifyResponse $ setContentType "application/json"
