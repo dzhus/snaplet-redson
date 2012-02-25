@@ -38,6 +38,8 @@ data Metamodel = Metamodel { fields :: [Field] }
 
 
 data Field = Field { name :: FieldName
+                   , fieldType :: Maybe String
+                   , label :: Maybe String
                    , canRead :: [Role]
                    , canWrite :: [Role]}
              deriving Show
@@ -49,9 +51,15 @@ instance FromJSON Metamodel where
     parseJSON _          = error "Unexpected input"
 
 
+-- | Used when field type is not specified in model description.
+defaultFieldType :: String
+defaultFieldType = "text"
+
 instance FromJSON Field where
     parseJSON (Object v) = Field <$>
                            v .: "name" <*>
+                           v .:? "type" <*>
+                           v .:? "label" <*>
                            v .:? "canRead" .!= [] <*>
                            v .:? "canEdit" .!= []
     parseJSON _          = error "Unexpected input"
