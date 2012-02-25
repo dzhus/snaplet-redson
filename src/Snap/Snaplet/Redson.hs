@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 {-|
 
@@ -185,6 +186,35 @@ create = ifTop $ do
   return ()
 
 
+getMetamodel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Metamodel)
+getMetamodel = liftM2 M.lookup getModelName (gets metamodels)
+
+
+------------------------------------------------------------------------------
+-- | Perform action with AuthManager.
+withAuth action = do
+  am <- gets _auth
+  return =<< withTop am action
+
+
+------------------------------------------------------------------------------
+-- | Try to get current user and metamodel of request.
+getSecurity :: Handler b (Redson b) (Maybe AuthUser, Maybe Metamodel)
+getSecurity = do
+  au <- withAuth currentUser
+  m <- getMetamodel
+  return (au, m)
+
+------------------------------------------------------------------------------
+-- | Reject request if no user is logged in or metamodel is unknown.
+checkSecurity :: (Maybe AuthUser, Maybe Metamodel) -> Handler b (Redson b) ()
+checkSecurity (au, m) = do
+  case (au, m) of
+    (Nothing, _) -> unauthorized
+    (_, Nothing) -> notFound
+    (_, _) -> return ()
+
+
 ------------------------------------------------------------------------------
 -- | Read instance from Redis.
 read' :: Handler b (Redson b) ()
@@ -292,9 +322,11 @@ routes = [ (":model/timeline", method GET timeline)
          , (":model/:id", method DELETE delete)
          ]
 
+
 -- | Build metamodel name from its file path.
 pathToMetamodelName :: FilePath -> MetamodelName
 pathToMetamodelName path = BU.fromString $ takeBaseName path
+
 
 -- | Read all metamodels from directory to a map.
 loadMetamodels :: FilePath -> IO (M.Map MetamodelName Metamodel)

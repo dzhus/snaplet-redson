@@ -37,3 +37,12 @@ serverError = do
   modifyResponse $ setResponseCode 500
   r <- getResponse
   finishWith r
+
+
+------------------------------------------------------------------------------
+-- | Short-circuit MonadSnap flow with 401 Unauthorized
+unauthorized :: MonadSnap m => m ()
+unauthorized = do
+  modifyResponse $ setResponseCode 401
+  r <- getResponse
+  finishWith r
