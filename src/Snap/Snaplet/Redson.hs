@@ -13,7 +13,7 @@ module Snap.Snaplet.Redson (Redson
                            , redsonInit)
 where
 
-import Prelude hiding (concat)
+import Prelude hiding (concat, FilePath)
 
 import Control.Monad.State
 import Control.Monad.Trans
@@ -22,9 +22,11 @@ import Data.Functor
 import Data.Aeson as A
 
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as BZ (ByteString)
+import qualified Data.ByteString.Lazy as BZ (ByteString, readFile)
 import qualified Data.ByteString.UTF8 as BU (fromString, toString)
 import qualified Data.ByteString.Lazy.UTF8 as BZU (fromString)
+
+import Data.Configurator
 
 import Data.Lens.Common
 import Data.Lens.Template
@@ -45,8 +47,10 @@ import qualified Network.WebSockets.Util.PubSub as PS
 
 import Database.Redis
 
-import Snap.Snaplet.Redson.Util
+import System.EasyFile
 
+import Snap.Snaplet.Redson.Metamodel
+import Snap.Snaplet.Redson.Util
 
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
@@ -54,6 +58,7 @@ data Redson b = Redson
              { _database :: Snaplet RedisDB
              , _events :: PS.PubSub Hybi10
              , _auth :: Lens b (Snaplet (AuthManager b))
+             , metamodels :: M.Map MetamodelName Metamodel
              }
 
 makeLens ''Redson
@@ -121,7 +126,7 @@ deletionMessage = modelMessage "delete"
 --
 -- Note using explicit B.ByteString type over BS s as suggested by
 -- redis because BS s doesn't imply ToJSON s.
-hgetallToJson :: [(B.ByteString, B.ByteString)] -> BZ.ByteString
+hgetallToJson :: Commit -> BZ.ByteString
 hgetallToJson r = A.encode $ M.fromList r
 
 
@@ -130,7 +135,7 @@ hgetallToJson r = A.encode $ M.fromList r
 -- Redis HMSET
 --
 -- Return Nothing if parsing failed.
-jsonToHmset :: BZ.ByteString -> Maybe [(B.ByteString, B.ByteString)]
+jsonToHmset :: BZ.ByteString -> Maybe Commit
 jsonToHmset s =
     let
         j = A.decode s
@@ -288,6 +293,26 @@ routes = [ (":model/timeline", method GET timeline)
          , (":model/:id", method DELETE delete)
          ]
 
+-- | Build metamodel name from its file path.
+pathToMetamodelName :: FilePath -> MetamodelName
+pathToMetamodelName path = BU.fromString $ takeBaseName path
+
+-- | Read all metamodels from directory to a map.
+loadMetamodels :: FilePath -> IO (M.Map MetamodelName Metamodel)
+loadMetamodels dir = 
+    let
+        parseModel filename = do
+              json <- BZ.readFile filename
+              case (A.decode json) of
+                Just model -> return model
+                Nothing -> error $ "Could not parse " ++ filename
+    in
+      do
+        dirEntries <- getDirectoryContents dir
+        -- Leave out non-files
+        files <- filterM doesFileExist (map (\f -> dir ++ "/" ++ f) dirEntries)
+        models <- mapM parseModel files
+        return $ M.fromList $ zip (map pathToMetamodelName files) models
 
 ------------------------------------------------------------------------------
 -- | Connect to Redis and set routes.
@@ -295,10 +320,17 @@ redsonInit :: Lens b (Snaplet (AuthManager b))
            -> SnapletInit b (Redson b)
 redsonInit topAuth = makeSnaplet 
                      "redson" 
-                     "CRUD for JSON data with Redis storage" 
+                     "CRUD for JSON data with Redis storage"
                      Nothing $
           do
             r <- nestSnaplet "db" database $ redisDBInit defaultConnectInfo
             p <- liftIO PS.newPubSub
+
+            cfg <- getSnapletUserConfig
+            mdlDir <- liftIO $
+                      lookupDefault "resources/models/"
+                                    cfg "metamodels-directory"
+
+            models <- liftIO $ loadMetamodels mdlDir
             addRoutes routes
-            return $ Redson r p topAuth
+            return $ Redson r p topAuth models

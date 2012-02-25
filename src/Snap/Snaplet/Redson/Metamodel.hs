@@ -18,6 +18,8 @@ import Data.ByteString.Lazy.UTF8
 import Snap.Snaplet.Auth
 
 
+type MetamodelName = B.ByteString
+
 -- | Field name.
 type FieldName = B.ByteString
 

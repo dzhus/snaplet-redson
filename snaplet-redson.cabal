@@ -21,15 +21,17 @@ library
   hs-source-dirs: src
 
   exposed-modules:      Snap.Snaplet.Redson
-  other-modules:        Snap.Snaplet.Redson.Util
+  other-modules:        Snap.Snaplet.Redson.Util, Snap.Snaplet.Redson.Metamodel
   
   build-depends:        
     aeson               == 0.6.*,
     base                == 4.*,
     bytestring          == 0.9.*,
+    configurator        == 0.2.*,
     containers          == 0.4.*,
     data-lens           >= 2.0.1 && < 2.1,
     data-lens-template  == 2.1.*,
+    easy-file           == 0.1.*,
     hedis               == 0.3.*,
     mtl                 == 2.*,
     snap                >= 0.7.1 && < 0.8,
