@@ -101,17 +101,49 @@ modelTimeline model = B.concat ["global:", model, ":timeline"]
 
 
 ------------------------------------------------------------------------------
+-- | Try to get Metamodel for current request.
+getMetamodel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Metamodel)
+getMetamodel = liftM2 M.lookup getModelName (gets metamodels)
+
+
+------------------------------------------------------------------------------
+-- | Perform action with AuthManager.
+withAuth action = do
+  am <- gets _auth
+  return =<< withTop am action
+
+
+------------------------------------------------------------------------------
+-- | Try to get current user and metamodel of request.
+getSecurity :: Handler b (Redson b) (Maybe AuthUser, Maybe Metamodel)
+getSecurity = do
+  au <- withAuth currentUser
+  m <- getMetamodel
+  return (au, m)
+
+
+------------------------------------------------------------------------------
+-- | Reject request if no user is logged in or metamodel is unknown.
+checkSecurity :: (Maybe AuthUser, Maybe Metamodel) -> Handler b (Redson b) ()
+checkSecurity (au, m) = do
+  case (au, m) of
+    (Nothing, _) -> unauthorized
+    (_, Nothing) -> notFound
+    (_, _) -> return ()
+
+
+------------------------------------------------------------------------------
 -- | Builder for WebSockets message containing JSON describing
 -- creation or deletion of model instance.
-modelMessage :: B.ByteString 
-             -> (B.ByteString 
-                 -> B.ByteString 
+modelMessage :: B.ByteString
+             -> (B.ByteString
+                 -> B.ByteString
                  -> Network.WebSockets.Message p)
 modelMessage event = \model id ->
     let
         response :: [(B.ByteString, B.ByteString)]
         response = [("event", event),
-                    ("id", id), 
+                    ("id", id),
                     ("model", model)]
     in
       DataMessage $ Text $ A.encode $ M.fromList response
@@ -142,7 +174,7 @@ jsonToHmset s =
     in
       case j of
         Nothing -> Nothing
-        Just m -> 
+        Just m ->
              -- Omit fields with null values and "id" key
             Just (map (\(k, v) -> (k, fromJust v)) $
                   filter (\(k, v) -> (isJust v && k /= "id")) $
@@ -151,7 +183,7 @@ jsonToHmset s =
 
 ------------------------------------------------------------------------------
 -- | Create new instance in Redis.
--- 
+--
 -- *TODO*: Use readRequestBody
 create :: Handler b (Redson b) ()
 create = ifTop $ do
@@ -173,7 +205,7 @@ create = ifTop $ do
     newId <- return $ (BU.fromString . show) n
 
     -- Save new instance
-    _ <- hmset (modelKey model newId) (fromJust j) 
+    _ <- hmset (modelKey model newId) (fromJust j)
     _ <- lpush (modelTimeline model) [newId]
     return newId
 
@@ -190,35 +222,6 @@ create = ifTop $ do
   -- Tell client new instance id in response JSON.
   writeLBS $ A.encode $ M.fromList $ ("id", newId):(fromJust j)
   return ()
-
-
-getMetamodel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Metamodel)
-getMetamodel = liftM2 M.lookup getModelName (gets metamodels)
-
-
-------------------------------------------------------------------------------
--- | Perform action with AuthManager.
-withAuth action = do
-  am <- gets _auth
-  return =<< withTop am action
-
-
-------------------------------------------------------------------------------
--- | Try to get current user and metamodel of request.
-getSecurity :: Handler b (Redson b) (Maybe AuthUser, Maybe Metamodel)
-getSecurity = do
-  au <- withAuth currentUser
-  m <- getMetamodel
-  return (au, m)
-
-------------------------------------------------------------------------------
--- | Reject request if no user is logged in or metamodel is unknown.
-checkSecurity :: (Maybe AuthUser, Maybe Metamodel) -> Handler b (Redson b) ()
-checkSecurity (au, m) = do
-  case (au, m) of
-    (Nothing, _) -> unauthorized
-    (_, Nothing) -> notFound
-    (_, _) -> return ()
 
 
 ------------------------------------------------------------------------------
@@ -247,38 +250,8 @@ read' = ifTop $ do
 
 
 ------------------------------------------------------------------------------
--- | Serve list of 10 latest instances stored in Redis.
---
--- *TODO*: Adjustable item limit.
-timeline :: Handler b (Redson b) ()
-timeline = ifTop $ do
-  model <- getModelName
-
-  r <- runRedisDB database $ do
-    Right r <- lrange (modelTimeline model) 0 9
-    return r
-
-  modifyResponse $ setContentType "application/json"
-  writeLBS (enc' r)
-    where
-        enc' :: [B.ByteString] -> LB.ByteString
-        enc' r = A.encode r
-
-
-------------------------------------------------------------------------------
--- | WebSockets handler which pushes instance creation/deletion events
--- to client.
-modelEvents :: Handler b (Redson b) ()
-modelEvents = ifTop $ do
-  ps <- gets _events
-  liftSnap $ runWebSocketsSnap (\r -> do
-                                  acceptRequest r
-                                  PS.subscribe ps)
-  
-
-------------------------------------------------------------------------------
 -- | Update existing instance in Redis.
--- 
+--
 -- *TODO* Report 201 if previously existed
 update :: Handler b (Redson b) ()
 update = ifTop $ do
@@ -296,7 +269,7 @@ update = ifTop $ do
   key <- getModelKey
   runRedisDB database $ hmset key (fromJust j)
   modifyResponse $ setResponseCode 204
-  return()
+  return ()
 
 
 ------------------------------------------------------------------------------
@@ -328,9 +301,39 @@ delete = ifTop $ do
 
   modifyResponse $ setContentType "application/json"
   writeLBS (hgetallToJson r)
-  
+
   ps <- gets _events
   liftIO $ PS.publish ps $ deletionMessage model id
+
+
+------------------------------------------------------------------------------
+-- | Serve list of 10 latest instances stored in Redis.
+--
+-- *TODO*: Adjustable item limit.
+timeline :: Handler b (Redson b) ()
+timeline = ifTop $ do
+  model <- getModelName
+
+  r <- runRedisDB database $ do
+    Right r <- lrange (modelTimeline model) 0 9
+    return r
+
+  modifyResponse $ setContentType "application/json"
+  writeLBS (enc' r)
+    where
+        enc' :: [B.ByteString] -> LB.ByteString
+        enc' r = A.encode r
+
+
+------------------------------------------------------------------------------
+-- | WebSockets handler which pushes instance creation/deletion events
+-- to client.
+modelEvents :: Handler b (Redson b) ()
+modelEvents = ifTop $ do
+  ps <- gets _events
+  liftSnap $ runWebSocketsSnap (\r -> do
+                                  acceptRequest r
+                                  PS.subscribe ps)
 
 
 -----------------------------------------------------------------------------
@@ -352,7 +355,7 @@ pathToMetamodelName path = BU.fromString $ takeBaseName path
 
 -- | Read all metamodels from directory to a map.
 loadMetamodels :: FilePath -> IO (M.Map MetamodelName Metamodel)
-loadMetamodels dir = 
+loadMetamodels dir =
     let
         parseModel filename = do
               json <- LB.readFile filename
@@ -367,12 +370,13 @@ loadMetamodels dir =
         models <- mapM parseModel files
         return $ M.fromList $ zip (map pathToMetamodelName files) models
 
+
 ------------------------------------------------------------------------------
 -- | Connect to Redis and set routes.
 redsonInit :: Lens b (Snaplet (AuthManager b))
            -> SnapletInit b (Redson b)
-redsonInit topAuth = makeSnaplet 
-                     "redson" 
+redsonInit topAuth = makeSnaplet
+                     "redson"
                      "CRUD for JSON data with Redis storage"
                      Nothing $
           do
