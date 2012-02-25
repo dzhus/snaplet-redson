@@ -130,8 +130,8 @@ hgetallToJson r = A.encode $ M.fromList r
 -- Redis HMSET
 --
 -- Return Nothing if parsing failed.
-jsonToHsetall :: BZ.ByteString -> Maybe [(B.ByteString, B.ByteString)]
-jsonToHsetall s =
+jsonToHmset :: BZ.ByteString -> Maybe [(B.ByteString, B.ByteString)]
+jsonToHmset s =
     let
         j = A.decode s
     in
@@ -151,7 +151,7 @@ jsonToHsetall s =
 create :: Handler b (Redson b) ()
 create = ifTop $ do
   -- Parse request body to list of pairs
-  j <- jsonToHsetall <$> getRequestBody
+  j <- jsonToHmset <$> getRequestBody
   when (isNothing j)
        serverError
 
@@ -239,7 +239,7 @@ modelEvents = ifTop $ do
 -- *TODO* Report 201 if previously existed
 update :: Handler b (Redson b) ()
 update = ifTop $ do
-  j <- jsonToHsetall <$> getRequestBody
+  j <- jsonToHmset <$> getRequestBody
   when (isNothing j)
        serverError
 
