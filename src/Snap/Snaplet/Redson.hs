@@ -316,17 +316,18 @@ delete = ifTop $ do
 -- *TODO*: Adjustable item limit.
 timeline :: Handler b (Redson b) ()
 timeline = ifTop $ do
-  name <- getModelName
+  withCheckSecurity $ \au mdl -> do
+    name <- getModelName
 
-  r <- runRedisDB database $ do
-    Right r <- lrange (modelTimeline name) 0 9
-    return r
+    r <- runRedisDB database $ do
+      Right r <- lrange (modelTimeline name) 0 9
+      return r
 
-  modifyResponse $ setContentType "application/json"
-  writeLBS (enc' r)
-    where
-        enc' :: [B.ByteString] -> LB.ByteString
-        enc' r = A.encode r
+    modifyResponse $ setContentType "application/json"
+    writeLBS (enc' r)
+      where
+          enc' :: [B.ByteString] -> LB.ByteString
+          enc' r = A.encode r
 
 
 ------------------------------------------------------------------------------

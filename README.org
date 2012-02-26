@@ -145,6 +145,8 @@
     removed as well.
 
     Client front-end uses timeline to show links to fresh instances.
+
+    canRead model permission is required to access model timeline.
      
 *** WebSockets notifications
 
