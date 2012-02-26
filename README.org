@@ -108,17 +108,17 @@
                {
                    "name": "code",
                    "label": "Code",
-                   "canEdit": ["front", "back"]
+                   "canWrite": ["front", "back"]
                },
                {
                    "name": "title",
                    "label": "Title",
-                   "canEdit": ["front", "back"]
+                   "canWrite": ["front", "back"]
                },
                {
                    "name": "foundAt",
                    "label": "Original location",
-                   "canEdit": ["front", "back"]
+                   "canWrite": ["front", "back"]
                },
                {
                    "name": "dangerClass",
@@ -127,19 +127,19 @@
                    "choice": ["Safe", "Euclid", "Keter"],
                    "label": "Class",
                    "canRead": ["front"]
-                   "canEdit": ["back"]
+                   "canWrite": ["back"]
                },
                {
                    "name": "conditions",
                    "type": "textarea",
                    "label": "Special Containment Procedures",
-                   "canEdit": ["back"]
+                   "canWrite": ["back"]
                },
                {
                    "name": "description",
                    "type": "textarea",
                    "label": "Description",
-                   "canEdit": ["back"]
+                   "canWrite": ["back"]
                }
            ]
        }
