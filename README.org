@@ -31,17 +31,17 @@
 
 *** Models
 
-    Prior to reading and writing form data, forms must be describing
-    using the metamodel syntax in JSON files stored in directory set
-    by `models-directory` setting (defaults to `resources/models/`).
-    See [[https://github.com/dzhus/snap-metaforms][snap-metaforms]] for syntax description.
+    Prior to reading and writing form data, the server reads form
+    descriptions which from JSON files stored in directory set by
+    `models-directory` setting (defaults to `resources/models/`). See
+    [[https://github.com/dzhus/snap-metaforms][snap-metaforms]] for syntax description.
 
 *** Permissions
 
     Permissions system is work in progress. Currently per-field
-    permissions are checked prior to writing any data to Redis or
-    sending response to client. Implementation currently follows these
-    rules:
+    permissions (set in canRead and canWrite field properties) are
+    checked prior to writing any data to Redis or sending response to
+    client. Implementation currently follows these rules:
 
     - No unreadable fields are sent to client on READ methods;
     - Attempt to perform any operation without being logged in results
@@ -57,7 +57,7 @@
    : GET /<formid>/model/
 
    Response will contain original description but without fields
-   unreadable by current user. "canEdit" field property will be set to
+   unreadable by current user. canEdit field property will be set to
    boolean value for every form field, indicating whether the current
    user can write to this field.
     
