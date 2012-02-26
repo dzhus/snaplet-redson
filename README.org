@@ -18,9 +18,8 @@
    which is INCR-ed after every new form instance is created in
    database.
    
-   No schema checking is performed by server, so in case the metamodel
-   changes and our client starts sending/expecting JSON with different
-   fields, nothing breaks.
+   No schema checking is performed by server, but permissions engine
+   will disallow writing arbitary models and fields to server.
 
    CRUD mapping to HTTP methods is implemented in Redson as expected
    by Backbone:
@@ -30,6 +29,38 @@
    : UPDATE → PUT /<formid>/<instanceid>/
    : DELETE → DELETE /<formid>/<instanceid>/
 
+*** Metamodels
+
+    Prior to reading and writing form data, forms must be describing
+    using the metamodel syntax in JSON files stored in directory set
+    by `metamodels-directory` setting (defaults to
+    `resources/models/`). See [[https://github.com/dzhus/snap-metaforms][snap-metaforms]] for syntax description.
+
+*** Permissions
+
+    Permissions system is work in progress. Currently per-field
+    permissions are checked prior to writing any data to Redis or
+    sending response to client. Implementation currently follows these
+    rules:
+
+    - No unreadable fields are sent to client on READ methods;
+    - Attempt to perform any operation without being logged in results
+      in 401 Unauthorized error.
+    - Attempt to perform any operation on unknown metamodel results in
+      404 Not Found error;
+    - Attempt to create or update instances with unwritable fields
+      will be rejected with 403 Forbidden.
+
+   Client may request stripped form description by sending this
+   request:
+   
+   : GET /<formid>/model/
+
+   Response will contain original description but without fields
+   unreadable by current user. "canEdit" field property will be set to
+   boolean value for every form field, indicating whether the current
+   user can write to this field.
+    
 *** Server interface by example
     
     Assume we're using `scp.js` metamodel given above.
@@ -135,17 +166,18 @@
    Currently we have to use a workaround to correctly direct
    `/_/<formname>/` requests to emptyPage handler by checking `id`
    parameter value in read handler.
-    
+   
 ** TODO Configurable pool size
 
 ** TODO Access control
-   Per-field permissions (r/w) for different user groups (roles).
-   c/r/u/d permissions on models for roles.
+   - [X] Per-field permissions (r/w) for different user groups
+     (roles);
+   - [ ]  c/r/u/d permissions on models for roles.
 ** TODO WebSockets interface improvement
    - [X] `load-model.js` contains full URI to WebSockets entry point
-      (currently hardcoded for `scp` metamodel)
+     (currently hardcoded for `scp` metamodel)
    - [ ] publish events only for respective model under
      `<model>/events` entry point (requires addressing extension for
      PubSub or multiple PubSubs)
    - [ ] possible use native Redis' publish/subscribe mechanism
-
+     
