@@ -126,7 +126,7 @@ getFieldPermissions user model =
                                                  intersect rls (userRoles user))
                        (fields model)
     in
-      (getFields canRead, union (getFields canRead) (getFields canWrite))
+      (union (getFields canRead) (getFields canWrite), getFields canWrite)
 
 
 -- | Check permissions to write the given set of metamodel fields.
@@ -146,10 +146,15 @@ filterUnreadable user model commit =
     in
       filter (\(k, v) -> elem k readables) commit
 
--- | Filter out unreadable fields from model description.
+-- | Filter out unreadable fields from model description, set
+-- "canEdit" to boolean depending on current user's permissions.
 stripMetamodel :: AuthUser -> Metamodel -> Metamodel
 stripMetamodel user model =
     let
+        readables = fst $ getFieldPermissions user model
         writables = snd $ getFieldPermissions user model
     in
-      model{fields = filter (\f -> elem (name f) writables) (fields model)}
+      model{fields = map (\f -> if elem (name f) writables 
+                                then f{canWrite = Everyone}
+                                else f{canWrite = Nobody}) $
+                     filter (\f -> elem (name f) readables) (fields model)}
