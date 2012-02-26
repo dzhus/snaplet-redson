@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- | Metamodel partial parser which allows to extract field
+-- | Model partial parser which allows to extract field
 -- permissions data.
 
 module Snap.Snaplet.Redson.Metamodel
@@ -18,7 +18,7 @@ import Data.ByteString.Lazy.UTF8
 import Snap.Snaplet.Auth
 
 
-type MetamodelName = B.ByteString
+type ModelName = B.ByteString
 
 -- | Field name.
 type FieldName = B.ByteString
@@ -33,7 +33,7 @@ type Commit = [(FieldName, FieldValue)]
 
 
 -- | Description of field set.
-data Metamodel = Metamodel { title  :: B.ByteString
+data Model = Model { title  :: B.ByteString
                            , fields :: [Field]
                            }
                  deriving Show
@@ -61,13 +61,13 @@ defaultFieldType :: B.ByteString
 defaultFieldType = "text"
 
 
-instance FromJSON Metamodel where
-    parseJSON (Object v) = Metamodel    <$>
+instance FromJSON Model where
+    parseJSON (Object v) = Model        <$>
       v .: "title"                      <*>
       v .: "fields"
     parseJSON _          = error "Could not parse model description"
 
-instance ToJSON Metamodel where
+instance ToJSON Model where
     toJSON mdl = object
       [ "title"      .= title mdl
       , "fields"     .= fields mdl
@@ -112,7 +112,7 @@ instance ToJSON Field where
 -- given user.
 --
 -- TODO: Cache this.
-getFieldPermissions :: AuthUser -> Metamodel -> ([FieldName], [FieldName])
+getFieldPermissions :: AuthUser -> Model -> ([FieldName], [FieldName])
 getFieldPermissions user model =
     let
         -- Get names of metamodel fields for which the given function
@@ -130,7 +130,7 @@ getFieldPermissions user model =
 
 
 -- | Check permissions to write the given set of metamodel fields.
-checkWrite :: AuthUser -> Metamodel -> Commit -> Bool
+checkWrite :: AuthUser -> Model -> Commit -> Bool
 checkWrite user model commit =
     let
         writables = snd $ getFieldPermissions user model
@@ -139,7 +139,7 @@ checkWrite user model commit =
 
 
 -- | Filter out commit fields which are not readable by user.
-filterUnreadable :: AuthUser -> Metamodel -> Commit -> Commit
+filterUnreadable :: AuthUser -> Model -> Commit -> Commit
 filterUnreadable user model commit =
     let
         readables = fst $ getFieldPermissions user model
@@ -148,13 +148,13 @@ filterUnreadable user model commit =
 
 -- | Filter out unreadable fields from model description, set
 -- "canEdit" to boolean depending on current user's permissions.
-stripMetamodel :: AuthUser -> Metamodel -> Metamodel
-stripMetamodel user model =
+stripModel :: AuthUser -> Model -> Model
+stripModel user model =
     let
         readables = fst $ getFieldPermissions user model
         writables = snd $ getFieldPermissions user model
     in
-      model{fields = map (\f -> if elem (name f) writables 
+      model{fields = map (\f -> if elem (name f) writables
                                 then f{canWrite = Everyone}
                                 else f{canWrite = Nobody}) $
                      filter (\f -> elem (name f) readables) (fields model)}

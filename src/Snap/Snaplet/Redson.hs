@@ -54,11 +54,13 @@ import Snap.Snaplet.Redson.Util
 
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
+--
+-- *TODO*: Use HashMap to store metamodels?
 data Redson b = Redson
              { _database :: Snaplet RedisDB
              , _events :: PS.PubSub Hybi10
              , _auth :: Lens b (Snaplet (AuthManager b))
-             , metamodels :: M.Map MetamodelName Metamodel
+             , metamodels :: M.Map ModelName Model
              }
 
 makeLens ''Redson
@@ -73,19 +75,19 @@ getModelName = fromParam "model"
 ------------------------------------------------------------------------------
 -- | Extract model instance id from request parameter.
 getModelId:: MonadSnap m => m B.ByteString
-getModelId= fromParam "id"
+getModelId = fromParam "id"
 
 
 ------------------------------------------------------------------------------
 -- | Build Redis key given model name and id
-modelKey :: B.ByteString -> B.ByteString -> B.ByteString
-modelKey model id = B.concat [model, ":", id]
+instanceKey :: B.ByteString -> B.ByteString -> B.ByteString
+instanceKey model id = B.concat [model, ":", id]
 
 
 ------------------------------------------------------------------------------
 -- | Extract model instance Redis key from request parameters.
-getModelKey :: MonadSnap m => m B.ByteString
-getModelKey = liftM2 modelKey getModelName getModelId
+getInstanceKey :: MonadSnap m => m B.ByteString
+getInstanceKey = liftM2 instanceKey getModelName getModelId
 
 
 ------------------------------------------------------------------------------
@@ -101,9 +103,9 @@ modelTimeline model = B.concat ["global:", model, ":timeline"]
 
 
 ------------------------------------------------------------------------------
--- | Try to get Metamodel for current request.
-getMetamodel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Metamodel)
-getMetamodel = liftM2 M.lookup getModelName (gets metamodels)
+-- | Try to get Model for current request.
+getModel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Model)
+getModel = liftM2 M.lookup getModelName (gets metamodels)
 
 
 ------------------------------------------------------------------------------
@@ -117,11 +119,11 @@ withAuth action = do
 -- | Reject request if no user is logged in or metamodel is unknown,
 -- otherwise perform given handler action with user and metamodel as
 -- arguments.
-withCheckSecurity :: (AuthUser -> Metamodel -> Handler b (Redson b) ())
+withCheckSecurity :: (AuthUser -> Model -> Handler b (Redson b) ())
                   -> Handler b (Redson b) ()
 withCheckSecurity action = do
   au <- withAuth currentUser
-  m <- getMetamodel
+  m <- getModel
   case (au, m) of
     (Nothing, _) -> unauthorized
     (_, Nothing) -> forbidden
@@ -199,7 +201,7 @@ create = ifTop $ do
           newId <- return $ (BU.fromString . show) n
 
           -- Save new instance
-          _ <- hmset (modelKey name newId) j
+          _ <- hmset (instanceKey name newId) j
           _ <- lpush (modelTimeline name) [newId]
           return newId
 
@@ -227,7 +229,7 @@ read' = ifTop $ do
        pass
 
   withCheckSecurity $ \au mdl -> do
-    key <- getModelKey
+    key <- getInstanceKey
     r <- runRedisDB database $ do
       Right r <- hgetall key
       return r
@@ -255,7 +257,7 @@ update = ifTop $ do
         when (not $ checkWrite au mdl j)
              forbidden
 
-        key <- getModelKey
+        key <- getInstanceKey
         runRedisDB database $ hmset key j
         modifyResponse $ setResponseCode 204
         return ()
@@ -268,7 +270,7 @@ delete = ifTop $ do
   withCheckSecurity $ \_ _ -> do
     id <- getModelId
     name <- getModelName
-    key <- getModelKey
+    key <- getInstanceKey
 
     r <- runRedisDB database $ do
       -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.7
@@ -327,7 +329,7 @@ modelEvents = ifTop $ do
 metamodel = ifTop $ do
   withCheckSecurity $ \au mdl -> do
     modifyResponse $ setContentType "application/json"
-    writeLBS (A.encode $ stripMetamodel au mdl)
+    writeLBS (A.encode $ stripModel au mdl)
 
 
 -----------------------------------------------------------------------------
@@ -344,13 +346,13 @@ routes = [ (":model/timeline", method GET timeline)
 
 
 -- | Build metamodel name from its file path.
-pathToMetamodelName :: FilePath -> MetamodelName
-pathToMetamodelName path = BU.fromString $ takeBaseName path
+pathToModelName :: FilePath -> ModelName
+pathToModelName path = BU.fromString $ takeBaseName path
 
 
 -- | Read all metamodels from directory to a map.
-loadMetamodels :: FilePath -> IO (M.Map MetamodelName Metamodel)
-loadMetamodels dir =
+loadModels :: FilePath -> IO (M.Map ModelName Model)
+loadModels dir =
     let
         parseModel filename = do
               json <- LB.readFile filename
@@ -363,7 +365,7 @@ loadMetamodels dir =
         -- Leave out non-files
         files <- filterM doesFileExist (map (\f -> dir ++ "/" ++ f) dirEntries)
         models <- mapM parseModel files
-        return $ M.fromList $ zip (map pathToMetamodelName files) models
+        return $ M.fromList $ zip (map pathToModelName files) models
 
 
 ------------------------------------------------------------------------------
@@ -383,6 +385,6 @@ redsonInit topAuth = makeSnaplet
                       lookupDefault "resources/models/"
                                     cfg "metamodels-directory"
 
-            models <- liftIO $ loadMetamodels mdlDir
+            models <- liftIO $ loadModels mdlDir
             addRoutes routes
             return $ Redson r p topAuth models
