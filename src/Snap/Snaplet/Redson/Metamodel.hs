@@ -182,14 +182,20 @@ filterUnreadable user model commit =
       filter (\(k, v) -> elem k readables) commit
 
 -- | Filter out unreadable fields from model description, set
--- "canEdit" to boolean depending on current user's permissions.
+-- per-field and whole-form "canEdit" to boolean depending on current
+-- user's permissions.
 stripModel :: AuthUser -> Model -> Model
 stripModel user model =
     let
+        stripMapper :: Bool -> Permissions
+        stripMapper b = if b then Everyone else Nobody
         readables = fst $ getFieldPermissions user model
         writables = snd $ getFieldPermissions user model
+        formPerms = getFormPermissions user model
     in
-      model{fields = map (\f -> if elem (name f) writables
-                                then f{canWrite = Everyone}
-                                else f{canWrite = Nobody}) $
-                     filter (\f -> elem (name f) readables) (fields model)}
+      model{ fields = map (\f -> f{canWrite = stripMapper $ 
+                                   elem (name f) writables}) $
+                      filter (\f -> elem (name f) readables) 
+                      (fields model)
+           , canWriteF = stripMapper $ snd formPerms
+           }
