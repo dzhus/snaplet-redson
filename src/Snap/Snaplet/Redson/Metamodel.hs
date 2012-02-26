@@ -34,8 +34,8 @@ type Commit = [(FieldName, FieldValue)]
 
 -- | Description of field set.
 data Model = Model { title  :: B.ByteString
-                           , fields :: [Field]
-                           }
+                   , fields :: [Field]
+                   }
                  deriving Show
 
 
