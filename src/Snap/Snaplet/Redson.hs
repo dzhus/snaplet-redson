@@ -45,7 +45,7 @@ import Network.WebSockets
 import Network.WebSockets.Snap
 import qualified Network.WebSockets.Util.PubSub as PS
 
-import Database.Redis
+import Database.Redis hiding (auth)
 
 import System.EasyFile
 
@@ -58,8 +58,8 @@ import Snap.Snaplet.Redson.Util
 -- *TODO*: Use HashMap to store metamodels?
 data Redson b = Redson
              { _database :: Snaplet RedisDB
-             , _events :: PS.PubSub Hybi10
-             , _auth :: Lens b (Snaplet (AuthManager b))
+             , auth :: Lens b (Snaplet (AuthManager b))
+             , events :: PS.PubSub Hybi10
              , metamodels :: M.Map ModelName Model
              }
 
@@ -110,8 +110,10 @@ getModel = liftM2 M.lookup getModelName (gets metamodels)
 
 ------------------------------------------------------------------------------
 -- | Perform action with AuthManager.
+withAuth :: (MonadState (Redson b1) (m b1 v), MonadSnaplet m) =>
+            m b1 (AuthManager b1) b -> m b1 v b
 withAuth action = do
-  am <- gets _auth
+  am <- gets auth
   return =<< withTop am action
 
 
@@ -128,7 +130,7 @@ withCheckSecurity action = do
   case (au, mdl) of
     (Nothing, _) -> unauthorized
     (_, Nothing) -> forbidden
-    (Just user, Just model) -> 
+    (Just user, Just model) ->
         case (elem m $ getFormPermissions user model) of
           True -> action user model
           False -> forbidden
@@ -150,8 +152,16 @@ modelMessage event = \model id ->
     in
       DataMessage $ Text $ A.encode $ M.fromList response
 
-
+-- | Model instance creation message.
+creationMessage :: B.ByteString -- ^ Model name
+                -> B.ByteString -- ^ Instance ID
+                -> Network.WebSockets.Message p
 creationMessage = modelMessage "create"
+
+-- | Model instance deletion message.
+deletionMessage :: B.ByteString -- ^ Model name
+                -> B.ByteString -- ^ Instance ID
+                -> Network.WebSockets.Message p
 deletionMessage = modelMessage "delete"
 
 
@@ -209,7 +219,7 @@ create = ifTop $ do
           _ <- lpush (modelTimeline name) [newId]
           return newId
 
-        ps <- gets _events
+        ps <- gets events
         liftIO $ PS.publish ps $ creationMessage name newId
 
         -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.5:
@@ -292,7 +302,7 @@ delete = ifTop $ do
     modifyResponse $ setContentType "application/json"
     writeLBS (hgetallToJson r)
 
-    ps <- gets _events
+    ps <- gets events
     liftIO $ PS.publish ps $ deletionMessage name id
 
 
@@ -302,7 +312,7 @@ delete = ifTop $ do
 -- *TODO*: Adjustable item limit.
 timeline :: Handler b (Redson b) ()
 timeline = ifTop $ do
-  withCheckSecurity $ \au mdl -> do
+  withCheckSecurity $ \_ _ -> do
     name <- getModelName
 
     r <- runRedisDB database $ do
@@ -321,7 +331,7 @@ timeline = ifTop $ do
 -- to client.
 modelEvents :: Handler b (Redson b) ()
 modelEvents = ifTop $ do
-  ps <- gets _events
+  ps <- gets events
   liftSnap $ runWebSocketsSnap (\r -> do
                                   acceptRequest r
                                   PS.subscribe ps)
@@ -331,6 +341,7 @@ modelEvents = ifTop $ do
 -- permissions.
 --
 -- TODO: Cache this wrt user permissions cache.
+metamodel :: Handler b (Redson b) ()
 metamodel = ifTop $ do
   withCheckSecurity $ \au mdl -> do
     modifyResponse $ setContentType "application/json"
@@ -360,8 +371,8 @@ loadModels :: FilePath -> IO (M.Map ModelName Model)
 loadModels dir =
     let
         parseModel filename = do
-              json <- LB.readFile filename
-              case (A.decode json) of
+              j <- LB.readFile filename
+              case (A.decode j) of
                 Just model -> return model
                 Nothing -> error $ "Could not parse " ++ filename
     in
@@ -392,4 +403,4 @@ redsonInit topAuth = makeSnaplet
 
             models <- liftIO $ loadModels mdlDir
             addRoutes routes
-            return $ Redson r p topAuth models
+            return $ Redson r topAuth p models

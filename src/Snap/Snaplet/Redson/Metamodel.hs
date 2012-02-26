@@ -205,7 +205,8 @@ filterUnreadable user model commit =
 
 -- | Filter out unreadable fields from model description, set
 -- per-field "canEdit" to boolean depending on current user's
--- permissions.
+-- permissions, set whole-form C-R-U-D permissions to booleans in
+-- similar fashion.
 stripModel :: AuthUser -> Model -> Model
 stripModel user model =
     let
