@@ -115,20 +115,6 @@ withAuth action = do
   return =<< withTop am action
 
 
--- | Check if user can access model using given method.
---
--- GET maps to canRead model permission while POST/PUT/DELETE map to
--- canWrite.
-hasFormAccess :: AuthUser -> Model -> Method -> Bool
-hasFormAccess user model crudMethod =
-  let
-      getter = case crudMethod of
-                 GET -> fst
-                 _ -> snd
-  in
-    getter $ getFormPermissions user model
-
-
 ------------------------------------------------------------------------------
 -- | Reject request if no user is logged in or metamodel is unknown or
 -- user has no permissions for CRUD method; otherwise perform given
@@ -143,7 +129,7 @@ withCheckSecurity action = do
     (Nothing, _) -> unauthorized
     (_, Nothing) -> forbidden
     (Just user, Just model) -> 
-        case (hasFormAccess user model m) of
+        case (elem m $ getFormPermissions user model) of
           True -> action user model
           False -> forbidden
 

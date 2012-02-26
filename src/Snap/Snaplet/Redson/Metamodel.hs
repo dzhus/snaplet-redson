@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 -- | Model partial parser which allows to extract field
 -- permissions data.
@@ -15,6 +16,10 @@ import Data.Aeson
 import qualified Data.ByteString as B
 import Data.ByteString.Lazy.UTF8
 
+import Data.Lens.Common
+import Data.Lens.Template
+
+import Snap.Core (Method(..))
 import Snap.Snaplet.Auth
 
 
@@ -32,15 +37,6 @@ type FieldValue = B.ByteString
 type Commit = [(FieldName, FieldValue)]
 
 
--- | Description of field set.
-data Model = Model { title     :: B.ByteString
-                   , fields    :: [Field]
-                   , canReadF  :: Permissions
-                   , canWriteF :: Permissions
-                   }
-                 deriving Show
-
-
 -- | Field permissions property.
 data Permissions = Roles [Role]
                  | Everyone
@@ -48,6 +44,7 @@ data Permissions = Roles [Role]
                  deriving Show
 
 
+-- | Form field object.
 data Field = Field { name           :: FieldName
                    , fieldType      :: B.ByteString
                    , label          :: Maybe B.ByteString
@@ -59,6 +56,19 @@ data Field = Field { name           :: FieldName
              deriving Show
 
 
+-- | Model describes fields and permissions.
+data Model = Model { title          :: B.ByteString
+                   , fields         :: [Field]
+                   , _canCreateF    :: Permissions
+                   , _canReadF      :: Permissions
+                   , _canUpdateF    :: Permissions
+                   , _canDeleteF    :: Permissions
+                   }
+                 deriving Show
+
+makeLenses [''Model]
+
+
 -- | Used when field type is not specified in model description.
 defaultFieldType :: B.ByteString
 defaultFieldType = "text"
@@ -68,16 +78,20 @@ instance FromJSON Model where
     parseJSON (Object v) = Model        <$>
       v .: "title"                      <*>
       v .: "fields"                     <*>
-      v .:? "canRead"  .!= Nobody       <*>
-      v .:? "canWrite" .!= Nobody
+      v .:? "canCreate" .!= Nobody      <*>
+      v .:? "canRead"   .!= Nobody      <*>
+      v .:? "canUpdate" .!= Nobody      <*>
+      v .:? "canDelete" .!= Nobody
     parseJSON _          = error "Could not parse model description"
 
 instance ToJSON Model where
     toJSON mdl = object
       [ "title"      .= title mdl
       , "fields"     .= fields mdl
-      , "canRead"    .= canReadF mdl
-      , "canWrite"   .= canWriteF mdl
+      , "canCreate"  .= _canCreateF mdl
+      , "canRead"    .= _canReadF mdl
+      , "canUpdate"  .= _canUpdateF mdl
+      , "canDelete"  .= _canDeleteF mdl
       ]
 
 
@@ -115,6 +129,15 @@ instance ToJSON Field where
       , "canWrite"   .= canWrite f
       ]
 
+
+-- | Map between CRUD methods and form permission lenses.
+methodMap :: [(Method, Lens Model Permissions)]
+methodMap = [ (POST,   canCreateF)
+            , (GET,    canReadF)
+            , (PUT,    canUpdateF)
+            , (DELETE, canDeleteF)
+            ]
+
 -- | Check if provided roles meet the permission requirements.
 --
 -- Always succeed in case Everyone is required, always fail in case
@@ -148,19 +171,17 @@ getFieldPermissions user model =
       (union (getFields canRead) (getFields canWrite), getFields canWrite)
 
 
--- | Get pair of booleans indicating whether model is
--- readable/writable by user.
+-- | Get list of CRUD/HTTP methods accessible by user for model.
 --
 -- TODO: Cache this.
-getFormPermissions :: AuthUser -> Model -> (Bool, Bool)
+getFormPermissions :: AuthUser -> Model -> [Method]
 getFormPermissions user model =
     let
         askPermission perm = intersectPermissions
-                             (perm model)
+                             (model ^. perm)
                              (userRoles user)
     in
-      (askPermission canReadF || askPermission canWriteF, 
-       askPermission canWriteF)
+      map fst $ filter (\(m, p) -> askPermission p) methodMap
 
 
 -- | Check permissions to write the given set of model fields.
@@ -181,21 +202,29 @@ filterUnreadable user model commit =
     in
       filter (\(k, v) -> elem k readables) commit
 
+
 -- | Filter out unreadable fields from model description, set
--- per-field and whole-form "canEdit" to boolean depending on current
--- user's permissions.
+-- per-field "canEdit" to boolean depending on current user's
+-- permissions.
 stripModel :: AuthUser -> Model -> Model
 stripModel user model =
     let
+        -- To set permission value to boolean depending on user roles
         stripMapper :: Bool -> Permissions
         stripMapper b = if b then Everyone else Nobody
-        readables = fst $ getFieldPermissions user model
-        writables = snd $ getFieldPermissions user model
+        (readables, writables) = getFieldPermissions user model
+        -- Only fields readable by current user
+        readableFields = filter 
+                         (\f -> elem (name f) readables)
+                         (fields model)
+        -- Fields with boolean canWrite's
+        strippedFields = map (\f -> f{canWrite = stripMapper $
+                                      elem (name f) writables})
+                         readableFields
         formPerms = getFormPermissions user model
+        -- List of lens setters to be applied to model
+        boolFormPerms = map (\(m, p) ->
+                             p ^= (stripMapper $ elem m formPerms)) 
+                        methodMap
     in
-      model{ fields = map (\f -> f{canWrite = stripMapper $ 
-                                   elem (name f) writables}) $
-                      filter (\f -> elem (name f) readables) 
-                      (fields model)
-           , canWriteF = stripMapper $ snd formPerms
-           }
+      foldl' (\m f -> f m) model{ fields = strippedFields } boolFormPerms
