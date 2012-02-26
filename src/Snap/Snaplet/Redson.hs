@@ -115,19 +115,37 @@ withAuth action = do
   return =<< withTop am action
 
 
+-- | Check if user can access model using given method.
+--
+-- GET maps to canRead model permission while POST/PUT/DELETE map to
+-- canWrite.
+hasFormAccess :: AuthUser -> Model -> Method -> Bool
+hasFormAccess user model crudMethod =
+  let
+      getter = case crudMethod of
+                 GET -> fst
+                 _ -> snd
+  in
+    getter $ getFormPermissions user model
+
+
 ------------------------------------------------------------------------------
--- | Reject request if no user is logged in or metamodel is unknown,
--- otherwise perform given handler action with user and metamodel as
--- arguments.
+-- | Reject request if no user is logged in or metamodel is unknown or
+-- user has no permissions for CRUD method; otherwise perform given
+-- handler action with user and metamodel as arguments.
 withCheckSecurity :: (AuthUser -> Model -> Handler b (Redson b) ())
                   -> Handler b (Redson b) ()
 withCheckSecurity action = do
   au <- withAuth currentUser
-  m <- getModel
-  case (au, m) of
+  mdl <- getModel
+  m <- getsRequest rqMethod
+  case (au, mdl) of
     (Nothing, _) -> unauthorized
     (_, Nothing) -> forbidden
-    (Just user, Just model) -> action user model
+    (Just user, Just model) -> 
+        case (hasFormAccess user model m) of
+          True -> action user model
+          False -> forbidden
 
 
 ------------------------------------------------------------------------------
