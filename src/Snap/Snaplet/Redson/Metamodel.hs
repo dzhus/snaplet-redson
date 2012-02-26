@@ -33,8 +33,10 @@ type Commit = [(FieldName, FieldValue)]
 
 
 -- | Description of field set.
-data Model = Model { title  :: B.ByteString
-                   , fields :: [Field]
+data Model = Model { title     :: B.ByteString
+                   , fields    :: [Field]
+                   , canReadF  :: Permissions
+                   , canWriteF :: Permissions
                    }
                  deriving Show
 
@@ -44,6 +46,7 @@ data Permissions = Roles [Role]
                  | Everyone
                  | Nobody
                  deriving Show
+
 
 data Field = Field { name           :: FieldName
                    , fieldType      :: B.ByteString
@@ -64,13 +67,17 @@ defaultFieldType = "text"
 instance FromJSON Model where
     parseJSON (Object v) = Model        <$>
       v .: "title"                      <*>
-      v .: "fields"
+      v .: "fields"                     <*>
+      v .:? "canRead"  .!= Nobody       <*>
+      v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse model description"
 
 instance ToJSON Model where
     toJSON mdl = object
       [ "title"      .= title mdl
       , "fields"     .= fields mdl
+      , "canRead"    .= canReadF mdl
+      , "canWrite"   .= canWriteF mdl
       ]
 
 
@@ -93,7 +100,7 @@ instance FromJSON Field where
       v .:? "label"                     <*>
       v .:? "choice"                    <*>
       v .:? "default"                   <*>
-      v .:? "canRead" .!= Nobody        <*>
+      v .:? "canRead"  .!= Nobody       <*>
       v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse field properties"
 
@@ -108,6 +115,20 @@ instance ToJSON Field where
       , "canWrite"   .= canWrite f
       ]
 
+-- | Check if provided roles meet the permission requirements.
+--
+-- Always succeed in case Everyone is required, always fail in case
+-- Nobody is required, otherwise succeeds when intersection is non-nil
+intersectPermissions :: Permissions      -- ^ Required permissions
+                     -> [Role]           -- ^ Provided roles
+                     -> Bool
+intersectPermissions required provided =
+    case required of
+      Everyone -> True
+      Nobody -> False
+      Roles rls -> not $ null $ intersect rls provided
+
+
 -- | Get lists of metamodel fields which are readable and writable by
 -- given user.
 --
@@ -119,14 +140,26 @@ getFieldPermissions user model =
         -- has non-null intersection with user roles
         getFields getRoles =
             map name $
-                filter (\field -> case (getRoles field) of
-                                    Everyone -> True
-                                    Nobody -> False
-                                    Roles rls -> not $ null $
-                                                 intersect rls (userRoles user))
+                filter (\field -> intersectPermissions
+                                  (getRoles field)
+                                  (userRoles user))
                        (fields model)
     in
       (union (getFields canRead) (getFields canWrite), getFields canWrite)
+
+
+-- | Get pair of booleans indicating whether model is
+-- readable/writable by user.
+--
+-- TODO: Cache this.
+getFormPermissions :: AuthUser -> Model -> (Bool, Bool)
+getFormPermissions user model =
+    let
+        askPermission perm = intersectPermissions
+                             (perm model)
+                             (userRoles user)
+    in
+      (askPermission canReadF, askPermission canWriteF)
 
 
 -- | Check permissions to write the given set of metamodel fields.
