@@ -159,7 +159,8 @@ getFormPermissions user model =
                              (perm model)
                              (userRoles user)
     in
-      (askPermission canReadF, askPermission canWriteF)
+      (askPermission canReadF || askPermission canWriteF, 
+       askPermission canWriteF)
 
 
 -- | Check permissions to write the given set of metamodel fields.
