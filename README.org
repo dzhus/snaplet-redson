@@ -81,11 +81,15 @@
 
      - Client does not attempt to write inaccessible fields to server
        and does not expect unreadable fields in server response.
+       
 **** Form permissions
      Form definition includes `canCreate`, `canUpdate`, `canRead` and
      `canDelete` properties which have the same syntax as per-field
      permissions, with each field listing roles having access to
-     specific CRUD methods for model.
+     specific CRUD methods for model. Implementation follows these
+     rules:
+
+     - `canCreate` implies `canUpdate` permission;
 
      Note that per-field permissions are still checked after
      whole-form ones succeed.

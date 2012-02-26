@@ -173,6 +173,8 @@ getFieldPermissions user model =
 
 -- | Get list of CRUD/HTTP methods accessible by user for model.
 --
+-- POST permission implies PUT.
+--
 -- TODO: Cache this.
 getFormPermissions :: AuthUser -> Model -> [Method]
 getFormPermissions user model =
@@ -180,9 +182,12 @@ getFormPermissions user model =
         askPermission perm = intersectPermissions
                              (model ^. perm)
                              (userRoles user)
+        rawPerms = map fst $
+                   filter (\(m, p) -> askPermission p) methodMap
     in
-      map fst $ filter (\(m, p) -> askPermission p) methodMap
-
+      if (elem POST rawPerms)
+      then rawPerms ++ [PUT]
+      else rawPerms
 
 -- | Check permissions to write the given set of model fields.
 checkWrite :: AuthUser -> Model -> Commit -> Bool
