@@ -163,13 +163,14 @@ getFormPermissions user model =
        askPermission canWriteF)
 
 
--- | Check permissions to write the given set of metamodel fields.
+-- | Check permissions to write the given set of model fields.
 checkWrite :: AuthUser -> Model -> Commit -> Bool
 checkWrite user model commit =
     let
         writables = snd $ getFieldPermissions user model
+        commitFields = map fst commit
     in
-      null $ intersect (map fst commit) writables
+      all (flip elem writables) commitFields
 
 
 -- | Filter out commit fields which are not readable by user.
