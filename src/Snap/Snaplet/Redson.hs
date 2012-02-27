@@ -347,6 +347,25 @@ metamodel = ifTop $ do
     modifyResponse $ setContentType "application/json"
     writeLBS (A.encode $ stripModel au mdl)
 
+------------------------------------------------------------------------------
+-- | Serve JSON array of readable models to user. Every array element
+-- is an object with fields "name" and "title".
+-- 
+-- TODO: Cache this.
+listMetamodels :: Handler b (Redson b) ()
+listMetamodels = ifTop $ do
+  au <- withAuth currentUser
+  case au of
+    Nothing -> unauthorized
+    Just user -> do
+      readables <- gets (filter (\(n, m) -> elem GET $
+                                            getModelPermissions user m)
+                        . M.toList . metamodels)
+      modifyResponse $ setContentType "application/json"
+      writeLBS (A.encode $ 
+                M.fromList $
+                map (\(n, m) -> (n, title m)) readables)
+  
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
@@ -354,6 +373,7 @@ routes :: [(B.ByteString, Handler b (Redson b) ())]
 routes = [ (":model/timeline", method GET timeline)
          , (":model/events", modelEvents)
          , (":model/model", method GET metamodel)
+         , ("_models", method GET listMetamodels)
          , (":model", method POST create)
          , (":model/:id", method GET read')
          , (":model/:id", method PUT update)
