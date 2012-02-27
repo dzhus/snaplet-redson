@@ -176,8 +176,8 @@ getFieldPermissions user model =
 -- POST permission implies PUT.
 --
 -- TODO: Cache this.
-getFormPermissions :: AuthUser -> Model -> [Method]
-getFormPermissions user model =
+getModelPermissions :: AuthUser -> Model -> [Method]
+getModelPermissions user model =
     let
         askPermission perm = intersectPermissions
                              (model ^. perm)
@@ -227,7 +227,7 @@ stripModel user model =
         strippedFields = map (\f -> f{canWrite = stripMapper $
                                       elem (name f) writables})
                          readableFields
-        formPerms = getFormPermissions user model
+        formPerms = getModelPermissions user model
         -- List of lens setters to be applied to model
         boolFormPerms = map (\(m, p) ->
                              p ^= (stripMapper $ elem m formPerms)) 

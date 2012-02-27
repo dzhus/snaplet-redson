@@ -131,7 +131,7 @@ withCheckSecurity action = do
     (Nothing, _) -> unauthorized
     (_, Nothing) -> forbidden
     (Just user, Just model) ->
-        case (elem m $ getFormPermissions user model) of
+        case (elem m $ getModelPermissions user model) of
           True -> action user model
           False -> forbidden
 
