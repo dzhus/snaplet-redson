@@ -363,9 +363,11 @@ listMetamodels = ifTop $ do
                         . M.toList . metamodels)
       modifyResponse $ setContentType "application/json"
       writeLBS (A.encode $ 
-                M.fromList $
-                map (\(n, m) -> (n, title m)) readables)
-  
+                map (\(n, m) -> M.fromList $ 
+                                [("name"::B.ByteString, n), 
+                                 ("title", title m)])
+                                readables)
+
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
@@ -387,6 +389,9 @@ pathToModelName path = BU.fromString $ takeBaseName path
 
 
 -- | Read all metamodels from directory to a map.
+--
+-- TODO: Perhaps rely on special directory file which explicitly lists
+-- all metamodels.
 loadModels :: FilePath -> IO (M.Map ModelName Model)
 loadModels dir =
     let
