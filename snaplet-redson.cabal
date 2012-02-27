@@ -37,7 +37,6 @@ library
     snap                >= 0.7.1 && < 0.8,
     snap-core           == 0.7.*,
     snaplet-redis       == 0.1.*,
-    unordered-containers== 0.1.*,
     utf8-string         == 0.3.*,
     websockets          == 0.5.*,
     websockets-snap     == 0.5.*
