@@ -37,13 +37,13 @@
 
     Form id is the basename of file which contains form definition.
 
-    Valid keys for form and fields are listed below, with required
-    fields marked by underline.
+    Valid keys for form and fields are listed below, with non-required
+    fields marked by /slant/.
     
 **** Valid form keys
-***** _title_
+***** title
       Human-readable form title.
-***** canCreate / canUpdate / canRead / canDelete
+***** /canCreate / canUpdate / canRead / canDelete/
       Form definition includes `canCreate`, `canUpdate`, `canRead` and
       `canDelete` properties which are lists of user roles which allow
       reading and writing to field, respectively. Each field lists
@@ -62,22 +62,22 @@
       If field is not included in model definition, `false` is
       implied.
       
-***** _fields_ !!!
+***** fields
       List of field objects, where every field object has keys listed
       below.
       
 **** Valid field keys
-***** _name_
+***** name
       Field object must include `name` key which is the internal name of
       the field.
 
       `class` cannot be used as a field name.
-***** default
+***** /default/
       Specifies the default value of field. Must somehow match the
       field type, currently processed on client side only (so any
       JavaScript value is valid).
       
-***** type
+***** /type/
       
       Type system currently matches HTML input element types, with
       following values valid for `type`:
@@ -91,7 +91,7 @@
 
       Client uses type data to properly render field contents.
       
-***** canRead / canWrite
+***** /canRead / canWrite/
       Any field may include `canRead` and `canWrite` properties, which
       have the same syntax as per-field per-form permissions.
 
@@ -107,7 +107,7 @@
       - Client does not attempt to write inaccessible fields to server
         and does not expect unreadable fields in server response.
         
-***** index
+***** /index/
       Boolean which instructs server to create exact reverse index on
       that field. (Currently unused).
 **** Sample form definition
