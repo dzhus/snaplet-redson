@@ -329,6 +329,8 @@ timeline = ifTop $ do
 ------------------------------------------------------------------------------
 -- | WebSockets handler which pushes instance creation/deletion events
 -- to client.
+--
+-- TODO: Check for login?
 modelEvents :: Handler b (Redson b) ()
 modelEvents = ifTop $ do
   ps <- gets events

@@ -29,6 +29,11 @@
    : UPDATE → PUT /<formid>/<instanceid>/
    : DELETE → DELETE /<formid>/<instanceid>/
 
+   Redson snaplet is parametrized by AuthManager snaplet lens (usually
+   from top-level application). All methods implemented by Redson
+   require user to be logged in, 401 Unauthorized HTTP error response
+   is issued otherwise.
+
 *** Models
 
     Prior to reading and writing form data, the server reads form
@@ -44,13 +49,10 @@
 ***** title
       Human-readable form title.
 ***** /canCreate / canUpdate / canRead / canDelete/
-      Form definition includes `canCreate`, `canUpdate`, `canRead` and
-      `canDelete` properties which are lists of user roles which allow
-      reading and writing to field, respectively. Each field lists
-      roles having access to specific CRUD methods for model. Boolean
-      values may be used instead of role lists as well, with `false`
-      meaning «none of the roles» and `true` meaning «all the roles».
-      Empty list is the same as `false`.
+      Each field lists roles having access to specific CRUD methods
+      for model. Boolean values may be used instead of role lists as
+      well, with `false` meaning «none of the roles» and `true`
+      meaning «all the roles». Empty list is the same as `false`.
 
       Implementation follows these rules:
 
@@ -61,6 +63,8 @@
 
       If field is not included in model definition, `false` is
       implied.
+
+      Attempt to violate permissions results in 403 Forbidden error.
       
 ***** fields
       List of field objects, where every field object has keys listed
@@ -92,8 +96,9 @@
       Client uses type data to properly render field contents.
       
 ***** /canRead / canWrite/
-      Any field may include `canRead` and `canWrite` properties, which
-      have the same syntax as per-field per-form permissions.
+      Per-field permissions have the same syntax as per-field per-form
+      permissions. Only readable fields are served to client and only
+      writable are allowed to be changed by client.
 
       Implementation generally follows these rules:
 
