@@ -50,6 +50,7 @@ data Field = Field { name           :: FieldName
                    , label          :: Maybe B.ByteString
                    , choice         :: Maybe [FieldValue]
                    , defaultVal     :: Maybe Value
+                   , index          :: Maybe Bool
                    , canRead        :: Permissions
                    , canWrite       :: Permissions
                    }
@@ -114,6 +115,7 @@ instance FromJSON Field where
       v .:? "label"                     <*>
       v .:? "choice"                    <*>
       v .:? "default"                   <*>
+      v .:? "index"                     <*>
       v .:? "canRead"  .!= Nobody       <*>
       v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse field properties"
@@ -125,6 +127,7 @@ instance ToJSON Field where
       , "label"      .= label f
       , "choice"     .= choice f
       , "default"    .= defaultVal f
+      , "index"      .= index f
       , "canRead"    .= canRead f
       , "canWrite"   .= canWrite f
       ]

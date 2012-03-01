@@ -32,68 +32,84 @@
 *** Models
 
     Prior to reading and writing form data, the server reads form
-    definition which from JSON files stored in directory set by
-    `models-directory` setting (defaults to `resources/models/`).
+    (model) definition which from JSON files stored in directory set
+    by `models-directory` setting (defaults to `resources/models/`).
 
     Form id is the basename of file which contains form definition.
 
-    Required object fields for model are `title` (readable form
-    title), `fields`, which is in turn a list of objects each
-    describing model field, `canRead` and `canWrite` whole-form
-    permission properties (see below).
+    Valid keys for form and fields are listed below, with required
+    fields marked by underline.
+    
+**** Valid form keys
+***** _title_
+      Human-readable form title.
+***** canCreate / canUpdate / canRead / canDelete
+      Form definition includes `canCreate`, `canUpdate`, `canRead` and
+      `canDelete` properties which are lists of user roles which allow
+      reading and writing to field, respectively. Each field lists
+      roles having access to specific CRUD methods for model. Boolean
+      values may be used instead of role lists as well, with `false`
+      meaning «none of the roles» and `true` meaning «all the roles».
+      Empty list is the same as `false`.
 
-    Field object must include `name` key which is the internal name of
-    the field. `default` key specifies the default value of field.
-   
-**** Valid field names
-     
-     `class` cannot be used as a field name.
+      Implementation follows these rules:
 
-**** Valid types
-     
-     Type system currently matches HTML input element types, with
-     following values valid for `type`:
+      - `canCreate` implies `canUpdate` permission.
 
-     - "text"
-     - "textarea"
-     - "checkbox"
-     - "select"
+      Note that per-field permissions are still checked after
+      whole-form ones succeed.
 
-     Client uses type data to properly render field contents.
-     
-**** Field permissions
-     Any field may include `canRead` and `canWrite` properties which
-     are lists of user roles which allow reading and writing to field,
-     respectively. They can be boolean values as well. Implementation
-     generally follows these rules:
+      If field is not included in model definition, `false` is
+      implied.
+      
+***** _fields_ !!!
+      List of field objects, where every field object has keys listed
+      below.
+      
+**** Valid field keys
+***** _name_
+      Field object must include `name` key which is the internal name of
+      the field.
 
-     - If field is unreadable, then client must not render it. 
-     
-     - If field is not writable by user, then form input element must
-       be inactive.
+      `class` cannot be used as a field name.
+***** default
+      Specifies the default value of field. Must somehow match the
+      field type, currently processed on client side only (so any
+      JavaScript value is valid).
+      
+***** type
+      
+      Type system currently matches HTML input element types, with
+      following values valid for `type`:
 
-     - If field is writable, then it's readable even if user role is
-       not listed among `canRead`.
+      - "text",
+      - "textarea",
+      - "checkbox",
+      - "select".
 
-     - If permission property is boolean, then `true` means any role
-       applies has the permission and `false` means none of roles does.
-       `false` value is the same as empty list.
+      Default field type is `text`
 
-     - Client does not attempt to write inaccessible fields to server
-       and does not expect unreadable fields in server response.
-       
-**** Form permissions
-     Form definition includes `canCreate`, `canUpdate`, `canRead` and
-     `canDelete` properties which have the same syntax as per-field
-     permissions, with each field listing roles having access to
-     specific CRUD methods for model. Implementation follows these
-     rules:
+      Client uses type data to properly render field contents.
+      
+***** canRead / canWrite
+      Any field may include `canRead` and `canWrite` properties, which
+      have the same syntax as per-field per-form permissions.
 
-     - `canCreate` implies `canUpdate` permission;
+      Implementation generally follows these rules:
 
-     Note that per-field permissions are still checked after
-     whole-form ones succeed.
-     
+      - If field is unreadable, then client must not render it. 
+      
+      - If field is not writable by user, then form input element must
+        be inactive.
+
+      - `canWrite` implies `canRead`.
+
+      - Client does not attempt to write inaccessible fields to server
+        and does not expect unreadable fields in server response.
+        
+***** index
+      Boolean which instructs server to create exact reverse index on
+      that field. (Currently unused).
 **** Sample form definition
      (As described in [[http://scp-wiki.wikidot.com/][The SCP Foundation]] archives)
      
@@ -145,6 +161,7 @@
        }
        
      #+END_SRC
+     
 **** Form id
      Consider a model is stored in `scp.js` file; we define
      formid as filename without extension (`scp`), which is used in URL
