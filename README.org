@@ -126,6 +126,10 @@
 ***** /index/
       Boolean which instructs server to create exact reverse index on
       that field. (Currently unused).
+***** /requried/
+      Boolean field to indicate that field is required. Client may
+      provide custom checks in UI for such fields. Unused on server
+      yet.
 **** Sample form definition
      (As described in [[http://scp-wiki.wikidot.com/][The SCP Foundation]] archives)
      
