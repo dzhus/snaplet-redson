@@ -320,9 +320,9 @@
   - models-directory ("resources/models"): directory which contains
     model definitions to be read by Redson.
     
-  - security-checking (true): when false, no permissions checking is
+  - transparent-mode (false): when true, no permissions checking is
     performed. Redson acts in «transparent mode» allowing to store and
-    retrieve any JSON data.
+    retrieve any JSON data. Any model may be written to.
 * To do
 ** TODO [#A] Cache user permissions
    Snap.Snaplet.Redson.Metamodel coupled with withCheckSecurity

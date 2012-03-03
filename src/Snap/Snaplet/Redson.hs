@@ -61,7 +61,8 @@ data Redson b = Redson
              , auth :: Lens b (Snaplet (AuthManager b))
              , events :: PS.PubSub Hybi10
              , models :: M.Map ModelName Model
-             , secure :: Bool
+             , transparent :: Bool
+             -- ^ Operate in transparent mode (not security checks).
              }
 
 makeLens ''Redson
@@ -133,10 +134,10 @@ withCheckSecurity :: (Either SuperUser AuthUser -> Maybe Model
                   -> Handler b (Redson b) ()
 withCheckSecurity action = do
   mdl <- getModel
-  sec <- gets secure
-  case sec of
-    False -> action (Left SuperUser) mdl
-    True -> do
+  trs <- gets transparent
+  case trs of
+    True -> action (Left SuperUser) mdl
+    False -> do
       m <- getsRequest rqMethod
       au <- withAuth currentUser
       case (au, mdl) of
@@ -373,10 +374,10 @@ metamodel = ifTop $ do
 listModels :: Handler b (Redson b) ()
 listModels = ifTop $ do
   au <- withAuth currentUser
-  sec <- gets secure
-  readables <- case sec of
-    False -> gets (M.toList . models)
-    True ->
+  trs <- gets transparent
+  readables <- case trs of
+    True -> gets (M.toList . models)
+    False ->
       case au of
         -- Won't get to serving [] anyways.
         Nothing -> unauthorized >> return []
@@ -450,10 +451,10 @@ redsonInit topAuth = makeSnaplet
                       lookupDefault "resources/models/"
                                     cfg "models-directory"
 
-            sec    <- liftIO $
-                      lookupDefault True
-                                    cfg "security-checking"
+            transp <- liftIO $
+                      lookupDefault False
+                                    cfg "transparent-mode"
 
             mdls <- liftIO $ loadModels mdlDir
             addRoutes routes
-            return $ Redson r topAuth p mdls sec
+            return $ Redson r topAuth p mdls transp
