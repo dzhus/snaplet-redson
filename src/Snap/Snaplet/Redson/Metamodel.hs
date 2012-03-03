@@ -133,6 +133,12 @@ instance ToJSON Field where
       ]
 
 
+-- | User who has all permissions (used in security-disabled mode).
+data SuperUser = SuperUser
+
+-- | Either superuser or logged in user.
+type User = Either SuperUser AuthUser
+
 -- | Map between CRUD methods and form permission lenses.
 methodMap :: [(Method, Lens Model Permissions)]
 methodMap = [ (POST,   canCreateF)
@@ -158,9 +164,16 @@ intersectPermissions required provided =
 -- | Get lists of metamodel fields which are readable and writable by
 -- given user.
 --
+-- 'SuperUser' can read and write all fields.
+--
 -- TODO: Cache this.
-getFieldPermissions :: AuthUser -> Model -> ([FieldName], [FieldName])
-getFieldPermissions user model =
+getFieldPermissions :: User -> Model -> ([FieldName], [FieldName])
+getFieldPermissions (Left SuperUser) model =
+    let
+        f = map name $ fields model
+    in
+      (f, f)
+getFieldPermissions (Right user) model =
     let
         -- Get names of metamodel fields for which the given function
         -- has non-null intersection with user roles
@@ -176,11 +189,14 @@ getFieldPermissions user model =
 
 -- | Get list of CRUD/HTTP methods accessible by user for model.
 --
+-- 'SuperUser' has all methods.
+--
 -- POST permission implies PUT.
 --
 -- TODO: Cache this.
-getModelPermissions :: AuthUser -> Model -> [Method]
-getModelPermissions user model =
+getModelPermissions :: User -> Model -> [Method]
+getModelPermissions (Left SuperUser) _ = [POST, GET, PUT, DELETE]
+getModelPermissions (Right user) model =
     let
         askPermission perm = intersectPermissions
                              (model ^. perm)
@@ -192,9 +208,13 @@ getModelPermissions user model =
       then rawPerms ++ [PUT]
       else rawPerms
 
+
 -- | Check permissions to write the given set of model fields.
-checkWrite :: AuthUser -> Model -> Commit -> Bool
-checkWrite user model commit =
+--
+-- 'SuperUser' can always write to any set of fields.
+checkWrite :: User -> Model -> Commit -> Bool
+checkWrite (Left SuperUser)   _      _ = True
+checkWrite user@(Right _) model commit =
     let
         writables = snd $ getFieldPermissions user model
         commitFields = map fst commit
@@ -203,8 +223,11 @@ checkWrite user model commit =
 
 
 -- | Filter out commit fields which are not readable by user.
-filterUnreadable :: AuthUser -> Model -> Commit -> Commit
-filterUnreadable user model commit =
+--
+-- 'SuperUser' can always read all fields.
+filterUnreadable :: User -> Model -> Commit -> Commit
+filterUnreadable (Left SuperUser) _     commit = commit
+filterUnreadable user@(Right _)   model commit =
     let
         readables = fst $ getFieldPermissions user model
     in
@@ -215,7 +238,7 @@ filterUnreadable user model commit =
 -- per-field "canEdit" to boolean depending on current user's
 -- permissions, set whole-form C-R-U-D permissions to booleans in
 -- similar fashion.
-stripModel :: AuthUser -> Model -> Model
+stripModel :: User -> Model -> Model
 stripModel user model =
     let
         -- To set permission value to boolean depending on user roles

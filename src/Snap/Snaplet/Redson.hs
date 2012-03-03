@@ -119,27 +119,32 @@ withAuth action = do
 
 
 ------------------------------------------------------------------------------
--- | Reject request if no user is logged in or metamodel is unknown or
+-- | Top-level (per-form) security checking.
+--
+-- Reject request if no user is logged in or metamodel is unknown or
 -- user has no permissions for CRUD method; otherwise perform given
--- handler action with user and metamodel as arguments. If
--- security-checking was disabled, always perform the action without
--- any checks.
-withCheckSecurity :: (AuthUser -> Model -> Handler b (Redson b) ())
+-- handler action with user and metamodel as arguments. In transparent
+-- mode, always perform the action without any checks.
+--
+-- If security checks are in effect and succeed, action is always
+-- called with Just constructor of Maybe Model.
+withCheckSecurity :: (Either SuperUser AuthUser -> Maybe Model
+                  -> Handler b (Redson b) ())
                   -> Handler b (Redson b) ()
 withCheckSecurity action = do
-  au <- withAuth currentUser
   mdl <- getModel
   sec <- gets secure
   case sec of
-    False -> action user model
+    False -> action (Left SuperUser) mdl
     True -> do
       m <- getsRequest rqMethod
+      au <- withAuth currentUser
       case (au, mdl) of
         (Nothing, _) -> unauthorized
         (_, Nothing) -> forbidden
         (Just user, Just model) ->
-           case (elem m $ getModelPermissions user model) of
-             True -> action user model
+           case (elem m $ getModelPermissions (Right user) model) of
+             True -> action (Right user) mdl
              False -> forbidden
 
 
@@ -206,14 +211,13 @@ jsonToHmset s =
 -- *TODO*: Use readRequestBody
 create :: Handler b (Redson b) ()
 create = ifTop $ do
-  withCheckSecurity $ \au mdl -> do
+  withCheckSecurity $ \au (Just mdl) -> do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
     case r of
       Nothing -> serverError
       Just j -> do
-        sec <- gets secure
-        when (sec && not $ checkWrite au mdl j)
+        when (not $ checkWrite au mdl j)
              forbidden
 
         name <- getModelName
@@ -250,7 +254,7 @@ read' = ifTop $ do
   when (B.null id)
        pass
 
-  withCheckSecurity $ \au mdl -> do
+  withCheckSecurity $ \au (Just mdl) -> do
     key <- getInstanceKey
     r <- runRedisDB database $ do
       Right r <- hgetall key
@@ -270,14 +274,13 @@ read' = ifTop $ do
 -- *TODO* Report 201 if previously existed
 update :: Handler b (Redson b) ()
 update = ifTop $ do
-  withCheckSecurity $ \au mdl -> do
+  withCheckSecurity $ \au (Just mdl) -> do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
     case r of
       Nothing -> serverError
       Just j -> do
-        sec <- gets secure
-        when (sec && not $ checkWrite au mdl j)
+        when (not $ checkWrite au mdl j)
              forbidden
 
         key <- getInstanceKey
@@ -355,29 +358,39 @@ modelEvents = ifTop $ do
 metamodel :: Handler b (Redson b) ()
 metamodel = ifTop $ do
   withCheckSecurity $ \au mdl -> do
-    modifyResponse $ setContentType "application/json"
-    writeLBS (A.encode $ stripModel au mdl)
+    case mdl of
+      Nothing -> notFound
+      Just m -> do
+        modifyResponse $ setContentType "application/json"
+        writeLBS (A.encode $ stripModel au m)
 
 ------------------------------------------------------------------------------
 -- | Serve JSON array of readable models to user. Every array element
--- is an object with fields "name" and "title".
+-- is an object with fields "name" and "title". In transparent mode,
+-- serve all models.
 -- 
 -- TODO: Cache this.
 listModels :: Handler b (Redson b) ()
 listModels = ifTop $ do
   au <- withAuth currentUser
-  case au of
-    Nothing -> unauthorized
-    Just user -> do
-      readables <- gets (filter (\(n, m) -> elem GET $
-                                            getModelPermissions user m)
-                        . M.toList . models)
-      modifyResponse $ setContentType "application/json"
-      writeLBS (A.encode $ 
-                map (\(n, m) -> M.fromList $ 
-                                [("name"::B.ByteString, n), 
-                                 ("title", title m)])
-                                readables)
+  sec <- gets secure
+  readables <- case sec of
+    False -> gets (M.toList . models)
+    True ->
+      case au of
+        -- Won't get to serving [] anyways.
+        Nothing -> unauthorized >> return []
+        -- Leave only readable models.
+        Just user ->
+            gets (filter (\(n, m) -> elem GET $
+                                     getModelPermissions (Right user) m)
+                  . M.toList . models)
+  modifyResponse $ setContentType "application/json"
+  writeLBS (A.encode $ 
+             map (\(n, m) -> M.fromList $ 
+                             [("name"::B.ByteString, n), 
+                              ("title", title m)])
+             readables)
 
 
 -----------------------------------------------------------------------------
@@ -437,10 +450,10 @@ redsonInit topAuth = makeSnaplet
                       lookupDefault "resources/models/"
                                     cfg "models-directory"
 
-            secure <- liftIO $
+            sec    <- liftIO $
                       lookupDefault True
                                     cfg "security-checking"
 
-            models <- liftIO $ loadModels mdlDir
+            mdls <- liftIO $ loadModels mdlDir
             addRoutes routes
-            return $ Redson r topAuth p models secure
+            return $ Redson r topAuth p mdls sec
