@@ -112,6 +112,16 @@
       - Client does not attempt to write inaccessible fields to server
         and does not expect unreadable fields in server response.
         
+
+***** /slot/ (proposed)
+      If `slot` key is present in field description, then field values
+      is a reference to another form. The client may provide interface
+      to edit or view the subform. The actual value provided for the
+      form field with `slot` tag should be `<formname>:<instanceid>`
+      string, where `<formname>` is the name of form to which the
+      reference is stored and `<instanceid>` is the id of specific
+      instance of that form. Redson does not check if formname or
+      instanceid are valid or exist in database.
 ***** /index/
       Boolean which instructs server to create exact reverse index on
       that field. (Currently unused).
@@ -303,6 +313,15 @@
    numbers are yet to be tuned.
 
 * To do
+** TODO [#A] Cache user permissions
+   Snap.Snaplet.Redson.Metamodel coupled with withCheckSecurity
+   provides permissions checking upon every CRUD operation.
+   Intersecting user roles and role lists set in form/field
+   permissions should be performed once when first request from that
+   user is received and cached for all further requests (models can't
+   be changed without Redson restart anyways, and restart will be
+   required when new users are added as well).
+
 ** BLOCKED Routing bug
    Snap fails to properly route requests to `/foo/bar/` if it's
    shadowed by `/foo/bar/:baz/` route even if `:baz` variable capture
