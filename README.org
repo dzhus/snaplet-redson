@@ -38,7 +38,8 @@
 
     Prior to reading and writing form data, the server reads form
     (model) definition which from JSON files stored in directory set
-    by `models-directory` setting (defaults to `resources/models/`).
+    by `models-directory` setting (defaults to `resources/models/`),
+    unless `security-checking` setting is set to `false` (see below).
 
     Form id is the basename of file which contains form definition.
 
@@ -281,7 +282,7 @@
 
      : {"code":"076-2","title":"Able","description":"Really nasty thing","class":"Keter"}
 
-
+** Extra features
 *** Timeline
 
     There's an extra entity stored in Redis for every model called
@@ -300,18 +301,28 @@
     Client front-end uses timeline to show links to fresh instances.
 
     canRead model permission is required to access model timeline.
-     
+    
 *** WebSockets notifications
 
     `/_/<modelname>/events/` provides instance creation/deletion
     notifications through WebSockets interface. Events are transmitted
     to clients in JSON format with fields `event`, `model` and `id`,
-    where `event` is either `create` or `delete`.
+    where `event` is either `create` or `delete`. No permissions are
+    checked currently when accessing events.
 
 ** Redis interface
    We use redis bindings provided by snaplet-redis package. Pool size
    numbers are yet to be tuned.
 
+* Setup
+  Following config options are recognized by Redson:
+
+  - models-directory ("resources/models"): directory which contains
+    model definitions to be read by Redson.
+    
+  - security-checking (true): when false, no permissions checking is
+    performed. Redson acts in «transparent mode» allowing to store and
+    retrieve any JSON data.
 * To do
 ** TODO [#A] Cache user permissions
    Snap.Snaplet.Redson.Metamodel coupled with withCheckSecurity

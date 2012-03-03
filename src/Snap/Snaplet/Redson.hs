@@ -61,6 +61,7 @@ data Redson b = Redson
              , auth :: Lens b (Snaplet (AuthManager b))
              , events :: PS.PubSub Hybi10
              , models :: M.Map ModelName Model
+             , secure :: Bool
              }
 
 makeLens ''Redson
@@ -428,6 +429,10 @@ redsonInit topAuth = makeSnaplet
                       lookupDefault "resources/models/"
                                     cfg "models-directory"
 
+            secure <- liftIO $
+                      lookupDefault True
+                                    cfg "security-checking"
+
             models <- liftIO $ loadModels mdlDir
             addRoutes routes
-            return $ Redson r topAuth p models
+            return $ Redson r topAuth p models secure
