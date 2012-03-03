@@ -130,6 +130,9 @@
       Boolean field to indicate that field is required. Client may
       provide custom checks in UI for such fields. Unused on server
       yet.
+***** /visible/
+      Boolean field to indicate that field should not be rendered on
+      UI (or not handled by client at all).
 **** Sample form definition
      (As described in [[http://scp-wiki.wikidot.com/][The SCP Foundation]] archives)
      

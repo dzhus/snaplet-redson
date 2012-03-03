@@ -52,6 +52,7 @@ data Field = Field { name           :: FieldName
                    , defaultVal     :: Maybe Value
                    , index          :: Maybe Bool
                    , required       :: Maybe Bool
+                   , visible        :: Maybe Bool
                    , canRead        :: Permissions
                    , canWrite       :: Permissions
                    }
@@ -118,6 +119,7 @@ instance FromJSON Field where
       v .:? "default"                   <*>
       v .:? "index"                     <*>
       v .:? "required"                  <*>
+      v .:? "visible"                   <*>
       v .:? "canRead"  .!= Nobody       <*>
       v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse field properties"
@@ -131,6 +133,7 @@ instance ToJSON Field where
       , "default"    .= defaultVal f
       , "index"      .= index f
       , "required"   .= required f
+      , "visible"    .= visible f
       , "canRead"    .= canRead f
       , "canWrite"   .= canWrite f
       ]
