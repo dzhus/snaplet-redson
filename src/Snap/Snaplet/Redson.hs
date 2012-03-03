@@ -121,20 +121,26 @@ withAuth action = do
 ------------------------------------------------------------------------------
 -- | Reject request if no user is logged in or metamodel is unknown or
 -- user has no permissions for CRUD method; otherwise perform given
--- handler action with user and metamodel as arguments.
+-- handler action with user and metamodel as arguments. If
+-- security-checking was disabled, always perform the action without
+-- any checks.
 withCheckSecurity :: (AuthUser -> Model -> Handler b (Redson b) ())
                   -> Handler b (Redson b) ()
 withCheckSecurity action = do
   au <- withAuth currentUser
   mdl <- getModel
-  m <- getsRequest rqMethod
-  case (au, mdl) of
-    (Nothing, _) -> unauthorized
-    (_, Nothing) -> forbidden
-    (Just user, Just model) ->
-        case (elem m $ getModelPermissions user model) of
-          True -> action user model
-          False -> forbidden
+  sec <- gets secure
+  case sec of
+    False -> action user model
+    True -> do
+      m <- getsRequest rqMethod
+      case (au, mdl) of
+        (Nothing, _) -> unauthorized
+        (_, Nothing) -> forbidden
+        (Just user, Just model) ->
+           case (elem m $ getModelPermissions user model) of
+             True -> action user model
+             False -> forbidden
 
 
 ------------------------------------------------------------------------------
@@ -206,7 +212,8 @@ create = ifTop $ do
     case r of
       Nothing -> serverError
       Just j -> do
-        when (not $ checkWrite au mdl j)
+        sec <- gets secure
+        when (sec && not $ checkWrite au mdl j)
              forbidden
 
         name <- getModelName
@@ -269,7 +276,8 @@ update = ifTop $ do
     case r of
       Nothing -> serverError
       Just j -> do
-        when (not $ checkWrite au mdl j)
+        sec <- gets secure
+        when (sec && not $ checkWrite au mdl j)
              forbidden
 
         key <- getInstanceKey
