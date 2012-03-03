@@ -55,12 +55,12 @@ import Snap.Snaplet.Redson.Util
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
 --
--- *TODO*: Use HashMap to store metamodels?
+-- *TODO*: Use HashMap to store models?
 data Redson b = Redson
              { _database :: Snaplet RedisDB
              , auth :: Lens b (Snaplet (AuthManager b))
              , events :: PS.PubSub Hybi10
-             , metamodels :: M.Map ModelName Model
+             , models :: M.Map ModelName Model
              }
 
 makeLens ''Redson
@@ -105,7 +105,7 @@ modelTimeline model = B.concat ["global:", model, ":timeline"]
 ------------------------------------------------------------------------------
 -- | Try to get Model for current request.
 getModel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Model)
-getModel = liftM2 M.lookup getModelName (gets metamodels)
+getModel = liftM2 M.lookup getModelName (gets models)
 
 
 ------------------------------------------------------------------------------
@@ -354,15 +354,15 @@ metamodel = ifTop $ do
 -- is an object with fields "name" and "title".
 -- 
 -- TODO: Cache this.
-listMetamodels :: Handler b (Redson b) ()
-listMetamodels = ifTop $ do
+listModels :: Handler b (Redson b) ()
+listModels = ifTop $ do
   au <- withAuth currentUser
   case au of
     Nothing -> unauthorized
     Just user -> do
       readables <- gets (filter (\(n, m) -> elem GET $
                                             getModelPermissions user m)
-                        . M.toList . metamodels)
+                        . M.toList . models)
       modifyResponse $ setContentType "application/json"
       writeLBS (A.encode $ 
                 map (\(n, m) -> M.fromList $ 
@@ -377,7 +377,7 @@ routes :: [(B.ByteString, Handler b (Redson b) ())]
 routes = [ (":model/timeline", method GET timeline)
          , (":model/events", modelEvents)
          , (":model/model", method GET metamodel)
-         , ("_models", method GET listMetamodels)
+         , ("_models", method GET listModels)
          , (":model", method POST create)
          , (":model/:id", method GET read')
          , (":model/:id", method PUT update)
@@ -390,10 +390,10 @@ pathToModelName :: FilePath -> ModelName
 pathToModelName path = BU.fromString $ takeBaseName path
 
 
--- | Read all metamodels from directory to a map.
+-- | Read all models from directory to a map.
 --
 -- TODO: Perhaps rely on special directory file which explicitly lists
--- all metamodels.
+-- all models.
 loadModels :: FilePath -> IO (M.Map ModelName Model)
 loadModels dir =
     let
@@ -426,7 +426,7 @@ redsonInit topAuth = makeSnaplet
             cfg <- getSnapletUserConfig
             mdlDir <- liftIO $
                       lookupDefault "resources/models/"
-                                    cfg "metamodels-directory"
+                                    cfg "models-directory"
 
             models <- liftIO $ loadModels mdlDir
             addRoutes routes
