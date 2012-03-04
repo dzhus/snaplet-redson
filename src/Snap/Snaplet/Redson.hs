@@ -14,10 +14,9 @@ module Snap.Snaplet.Redson (Redson
                            , redsonInit)
 where
 
-import Prelude hiding (concat, FilePath)
+import Prelude hiding (concat, FilePath, id)
 
 import Control.Monad.State hiding (put)
-import Control.Monad.Trans
 import Data.Functor
 
 import Data.Aeson as A
@@ -33,13 +32,10 @@ import Data.Lens.Template
 
 import qualified Data.Map as M
 
-import Data.Maybe
-
 import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.Auth
 import Snap.Snaplet.RedisDB
-import Snap.Util.FileServe
 
 import Network.WebSockets
 import Network.WebSockets.Snap
@@ -71,13 +67,13 @@ makeLens ''Redson
 
 ------------------------------------------------------------------------------
 -- | Extract model name from request path parameter.
-getModelName:: MonadSnap m => m B.ByteString
+getModelName:: MonadSnap m => m ModelName
 getModelName = fromParam "model"
 
 
 ------------------------------------------------------------------------------
 -- | Extract model instance id from request parameter.
-getModelId:: MonadSnap m => m B.ByteString
+getModelId:: MonadSnap m => m InstanceId
 getModelId = fromParam "id"
 
 
@@ -138,8 +134,8 @@ withCheckSecurity action = do
 -- | Builder for WebSockets message containing JSON describing
 -- creation or deletion of model instance.
 modelMessage :: B.ByteString
-             -> (B.ByteString
-                 -> B.ByteString
+             -> (ModelName
+                 -> InstanceId
                  -> Network.WebSockets.Message p)
 modelMessage event = \model id ->
     let
@@ -151,14 +147,14 @@ modelMessage event = \model id ->
       DataMessage $ Text $ A.encode $ M.fromList response
 
 -- | Model instance creation message.
-creationMessage :: B.ByteString -- ^ Model name
-                -> B.ByteString -- ^ Instance ID
+creationMessage :: ModelName
+                -> InstanceId
                 -> Network.WebSockets.Message p
 creationMessage = modelMessage "create"
 
 -- | Model instance deletion message.
-deletionMessage :: B.ByteString -- ^ Model name
-                -> B.ByteString -- ^ Instance ID
+deletionMessage :: ModelName
+                -> InstanceId
                 -> Network.WebSockets.Message p
 deletionMessage = modelMessage "delete"
 
@@ -184,7 +180,7 @@ jsonToHmset s =
         Just m ->
              -- Omit fields with null values and "id" key
             Just (M.filterWithKey 
-                       (\k v -> k /= "id")
+                       (\k _ -> k /= "id")
                        m)
 
 
@@ -203,12 +199,12 @@ post = ifTop $ do
         when (not $ checkWrite au mdl commit) $
              handleError forbidden
 
-        name <- getModelName
+        mname <- getModelName
         Right newId <- runRedisDB database $
-           create name commit (indices mdl)
+           create mname commit (indices mdl)
 
         ps <- gets events
-        liftIO $ PS.publish ps $ creationMessage name newId
+        liftIO $ PS.publish ps $ creationMessage mname newId
 
         -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.5:
         --
@@ -260,9 +256,9 @@ put = ifTop $ do
              handleError forbidden
 
         id <- getModelId
-        name <- getModelName        
+        mname <- getModelName        
         resp <- runRedisDB database $ 
-           update name id j (indices mdl)
+           update mname id j (indices mdl)
         case resp of
           Left err -> handleError err
           Right _ -> modifyResponse $ setResponseCode 204
@@ -275,7 +271,7 @@ delete :: Handler b (Redson b) ()
 delete = ifTop $ do
   withCheckSecurity $ \_ _ -> do
     id <- getModelId
-    name <- getModelName
+    mname <- getModelName
     key <- getInstanceKey
 
     r <- runRedisDB database $ do
@@ -289,13 +285,13 @@ delete = ifTop $ do
     when (null r) $
          handleError notFound
 
-    runRedisDB database $ lrem (modelTimeline name) 1 id >> del [key]
+    runRedisDB database $ lrem (modelTimeline mname) 1 id >> del [key]
 
     modifyResponse $ setContentType "application/json"
     writeLBS (hgetallToJson (M.fromList r))
 
     ps <- gets events
-    liftIO $ PS.publish ps $ deletionMessage name id
+    liftIO $ PS.publish ps $ deletionMessage mname id
 
 
 ------------------------------------------------------------------------------
@@ -305,10 +301,10 @@ delete = ifTop $ do
 timeline :: Handler b (Redson b) ()
 timeline = ifTop $ do
   withCheckSecurity $ \_ _ -> do
-    name <- getModelName
+    mname <- getModelName
 
     r <- runRedisDB database $ do
-      Right r <- lrange (modelTimeline name) 0 9
+      Right r <- lrange (modelTimeline mname) 0 9
       return r
 
     modifyResponse $ setContentType "application/json"
@@ -362,7 +358,7 @@ listModels = ifTop $ do
         Nothing -> handleError unauthorized >> return []
         -- Leave only readable models.
         Just user ->
-            gets (filter (\(n, m) -> elem GET $
+            gets (filter (\(_, m) -> elem GET $
                                      getModelPermissions (Right user) m)
                   . M.toList . models)
   modifyResponse $ setContentType "application/json"
@@ -389,7 +385,7 @@ routes = [ (":model/timeline", method GET timeline)
 
 -- | Build metamodel name from its file path.
 pathToModelName :: FilePath -> ModelName
-pathToModelName path = BU.fromString $ takeBaseName path
+pathToModelName filepath = BU.fromString $ takeBaseName filepath
 
 
 -- | Read all models from directory to a map.
@@ -397,8 +393,9 @@ pathToModelName path = BU.fromString $ takeBaseName path
 -- TODO: Perhaps rely on special directory file which explicitly lists
 -- all models.
 loadModels :: FilePath -> IO (M.Map ModelName Model)
-loadModels dir =
+loadModels directory =
     let
+        parseModel :: FilePath -> IO Model
         parseModel filename = do
               j <- LB.readFile filename
               case (A.decode j) of
@@ -406,11 +403,11 @@ loadModels dir =
                 Nothing -> error $ "Could not parse " ++ filename
     in
       do
-        dirEntries <- getDirectoryContents dir
+        dirEntries <- getDirectoryContents directory
         -- Leave out non-files
-        files <- filterM doesFileExist (map (\f -> dir ++ "/" ++ f) dirEntries)
-        models <- mapM parseModel files
-        return $ M.fromList $ zip (map pathToModelName files) models
+        files <- filterM doesFileExist (map (\f -> directory ++ "/" ++ f) dirEntries)
+        mdls <- mapM parseModel files
+        return $ M.fromList $ zip (map pathToModelName files) mdls
 
 
 ------------------------------------------------------------------------------
