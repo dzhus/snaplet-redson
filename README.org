@@ -125,7 +125,10 @@
       instanceid are valid or exist in database.
 ***** /index/
       Boolean which instructs server to create exact reverse index on
-      that field. (Currently unused).
+      that field on create/update operations.
+
+      Redis key used is <modelname>:<field>:<value>, value stored is a
+      set of instance ids with that value for indexed field.
 ***** /requried/
       Boolean field to indicate that field is required. Client may
       provide custom checks in UI for such fields. Unused on server
@@ -216,7 +219,8 @@
    boolean value for every form field, indicating whether the current
    user can write to this field. Whole-form permissions will be set to
    booleans as well, indicating whether the current user has specific
-   permissions.
+   permissions. Served form will also contain `indices` field which is a
+   list of index fields of model.
 
    Client may also request list of readable models from
 
