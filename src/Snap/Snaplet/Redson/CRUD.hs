@@ -19,7 +19,7 @@ import Snap.Snaplet.Redson.Metamodel
 
 
 ------------------------------------------------------------------------------
--- | Build Redis key given model name and id
+-- | Build Redis key given model name and instance id
 instanceKey :: B.ByteString -> B.ByteString -> B.ByteString
 instanceKey model id = B.concat [model, ":", id]
 
