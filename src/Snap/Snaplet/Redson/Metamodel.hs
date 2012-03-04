@@ -50,7 +50,7 @@ data Field = Field { name           :: FieldName
                    , label          :: Maybe B.ByteString
                    , choice         :: Maybe [FieldValue]
                    , defaultVal     :: Maybe Value
-                   , index          :: Maybe Bool
+                   , index          :: Bool
                    , required       :: Maybe Bool
                    , invisible      :: Maybe Bool
                    , canRead        :: Permissions
@@ -66,6 +66,8 @@ data Model = Model { title          :: B.ByteString
                    , _canReadF      :: Permissions
                    , _canUpdateF    :: Permissions
                    , _canDeleteF    :: Permissions
+                   , indices        :: [FieldName]
+                   -- ^ Cached list of index fields.
                    }
                  deriving Show
 
@@ -78,13 +80,16 @@ defaultFieldType = "text"
 
 
 instance FromJSON Model where
-    parseJSON (Object v) = Model        <$>
-      v .: "title"                      <*>
-      v .: "fields"                     <*>
-      v .:? "canCreate" .!= Nobody      <*>
-      v .:? "canRead"   .!= Nobody      <*>
-      v .:? "canUpdate" .!= Nobody      <*>
-      v .:? "canDelete" .!= Nobody
+    parseJSON (Object v) = do
+      fields <- parseJSON =<< (v .: "fields")
+      return =<< Model                    <$>
+        v .: "title"                      <*>
+        v .: "fields"                     <*>
+        v .:? "canCreate" .!= Nobody      <*>
+        v .:? "canRead"   .!= Nobody      <*>
+        v .:? "canUpdate" .!= Nobody      <*>
+        v .:? "canDelete" .!= Nobody      <*>
+        (pure $ map name $ filter index fields)
     parseJSON _          = error "Could not parse model description"
 
 instance ToJSON Model where
@@ -117,7 +122,7 @@ instance FromJSON Field where
       v .:? "label"                     <*>
       v .:? "choice"                    <*>
       v .:? "default"                   <*>
-      v .:? "index"                     <*>
+      v .:? "index"    .!= False        <*>
       v .:? "required"                  <*>
       v .:? "invisible"                 <*>
       v .:? "canRead"  .!= Nobody       <*>

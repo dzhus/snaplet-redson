@@ -206,7 +206,7 @@ post = ifTop $ do
 
         name <- getModelName
         newId <- runRedisDB database $ do
-          create name commit
+          create name commit (indices mdl)
 
         ps <- gets events
         liftIO $ PS.publish ps $ creationMessage name newId

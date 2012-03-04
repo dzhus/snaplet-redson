@@ -37,13 +37,22 @@ modelTimeline model = B.concat ["global:", model, ":timeline"]
 
 
 ------------------------------------------------------------------------------
+-- | Build Redis key for field index of model.
+modelIndex :: B.ByteString -> B.ByteString -> B.ByteString
+modelIndex model field = B.concat [model, ":", field]
+
+
+------------------------------------------------------------------------------
 -- | Create new instance in Redis.
 --
 -- Bump model id counter and update timeline, return new instance id.
 --
 -- TODO: Support pubsub from here
-create :: ModelName -> Commit -> Redis B.ByteString
-create name j = do
+create :: ModelName           -- ^ Model id
+       -> Commit              -- ^ Key-values of instance data
+       -> [FieldName]         -- ^ Index fields
+       -> Redis B.ByteString
+create name j indices = do
   -- Take id from global:model:id
   Right n <- incr $ modelIdKey name
   newId <- return $ (BU.fromString . show) n
