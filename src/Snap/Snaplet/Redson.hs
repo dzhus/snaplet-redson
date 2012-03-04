@@ -167,8 +167,8 @@ deletionMessage = modelMessage "delete"
 
 ------------------------------------------------------------------------------
 -- | Encode Redis HGETALL reply to B.ByteString with JSON.
-hgetallToJson :: Commit -> LB.ByteString
-hgetallToJson r = A.encode r
+commitToJson :: Commit -> LB.ByteString
+commitToJson r = A.encode r
 
 
 ------------------------------------------------------------------------------
@@ -176,8 +176,8 @@ hgetallToJson r = A.encode r
 -- Redis HMSET (still to be `toList`-ed).
 --
 -- Return Nothing if parsing failed.
-jsonToHmset :: LB.ByteString -> Maybe Commit
-jsonToHmset s =
+jsonToCommit :: LB.ByteString -> Maybe Commit
+jsonToCommit s =
     let
         j = A.decode s
     in
@@ -198,7 +198,7 @@ post :: Handler b (Redson b) ()
 post = ifTop $ do
   withCheckSecurity $ \au mdl -> do
     -- Parse request body to list of pairs
-    r <- jsonToHmset <$> getRequestBody
+    r <- jsonToCommit <$> getRequestBody
     case r of
       Nothing -> handleError serverError
       Just commit -> do
@@ -242,7 +242,7 @@ read' = ifTop $ do
          handleError notFound
 
     modifyResponse $ setContentType "application/json"
-    writeLBS $ hgetallToJson $ (filterUnreadable au mdl (M.fromList r))
+    writeLBS $ commitToJson $ (filterUnreadable au mdl (M.fromList r))
     return ()
 
 
@@ -254,7 +254,7 @@ put :: Handler b (Redson b) ()
 put = ifTop $ do
   withCheckSecurity $ \au mdl -> do
     -- Parse request body to list of pairs
-    r <- jsonToHmset <$> getRequestBody
+    r <- jsonToCommit <$> getRequestBody
     case r of
       Nothing -> handleError serverError
       Just j -> do
@@ -294,7 +294,7 @@ delete = ifTop $ do
     runRedisDB database $ lrem (modelTimeline mname) 1 id >> del [key]
 
     modifyResponse $ setContentType "application/json"
-    writeLBS (hgetallToJson (M.fromList r))
+    writeLBS (commitToJson (M.fromList r))
 
     ps <- gets events
     liftIO $ PS.publish ps $ deletionMessage mname id
