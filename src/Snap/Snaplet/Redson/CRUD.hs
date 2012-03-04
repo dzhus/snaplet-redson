@@ -12,6 +12,7 @@ module Snap.Snaplet.Redson.CRUD
 where
 
 import Control.Monad.State
+import Data.Maybe
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.UTF8 as BU (fromString)
@@ -52,12 +53,40 @@ modelIndex model field value = B.concat [model, ":", field, ":", value]
 
 ------------------------------------------------------------------------------
 -- | Perform provided action for every indexed field in commit.
-forIndices :: Commit -> [FieldName] -> (FieldName -> Redis ()) -> Redis ()
+--
+-- Action is called with index field name and its value in commit.
+forIndices :: Commit 
+           -> [FieldName] 
+           -> (FieldName -> FieldValue -> Redis ())
+           -> Redis ()
 forIndices commit indices action =
     mapM_ (\i -> case (M.lookup i commit) of
-                   Just v -> action v
-                   Nothing -> return ())
+                   Just v -> action i v)
         indices
+
+
+------------------------------------------------------------------------------
+-- | Create reverse indices for new commit.
+createIndices :: ModelName -> B.ByteString -> Commit -> [FieldName] -> Redis ()
+createIndices name id commit indices =
+    forIndices commit indices $
+                   \i v -> when (v /= "") $
+                           sadd (modelIndex name i v) [id] >> return ()
+
+
+------------------------------------------------------------------------------
+-- | Remove indices previously created by commit (should contain all
+-- indexed fields only).
+deleteIndices :: ModelName 
+              -> B.ByteString              -- ^ Instance id.
+              -> [(FieldName, FieldValue)] -- ^ Commit with old
+                                           -- indexed values (zipped
+                                           -- from HMGET).
+              -> [FieldName]               -- ^ Index fields
+              -> Redis ()
+deleteIndices name id commit indices =
+    mapM_ (\(i, v) -> srem (modelIndex name i v) [id])
+          commit
 
 
 ------------------------------------------------------------------------------
@@ -80,14 +109,14 @@ create name commit indices = do
   _ <- lpush (modelTimeline name) [newId]
 
   -- Create indices
-  forIndices commit indices $
-                 \v -> when (v /= "") $
-                       sadd v [newId] >> return ()
+  createIndices name newId commit indices
   return (Right newId)
 
 
 ------------------------------------------------------------------------------
 -- | Modify existing instance in Redis.
+--
+-- TODO: Handle non-existing instance as error here?
 update :: ModelName
        -> B.ByteString
        -> Commit
@@ -97,8 +126,9 @@ update name id commit indices =
   let
       key = instanceKey name id
   in do
+    Right old <- hmget key indices
     hmset key (M.toList commit)
-    forIndices commit indices $
-                   \v -> when (v /= "") $
-                         sadd v [newId] >> return ()
+
+    deleteIndices name id (zip indices (catMaybes old)) indices
+    createIndices name id commit indices
     return (Right ())

@@ -247,7 +247,7 @@ read' = ifTop $ do
 ------------------------------------------------------------------------------
 -- | Handle PUT request for existing instance in Redis.
 --
--- *TODO* Report 201 if previously existed
+-- *TODO* Report 201 if could create new instance.
 put :: Handler b (Redson b) ()
 put = ifTop $ do
   withCheckSecurity $ \au (Just mdl) -> do
@@ -261,9 +261,11 @@ put = ifTop $ do
 
         id <- getModelId
         name <- getModelName        
-        runRedisDB database $ 
+        resp <- runRedisDB database $ 
            update name id j (indices mdl)
-        modifyResponse $ setResponseCode 204
+        case resp of
+          Left err -> handleError err
+          Right _ -> modifyResponse $ setResponseCode 204
         return ()
 
 
