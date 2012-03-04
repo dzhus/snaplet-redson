@@ -399,7 +399,7 @@ search =
         -- Fetch instance by id to JSON
         fetchInstance key id = runRedisDB database $ do
           Right r <- hgetall key
-          return (hgetallToJson (M.fromList $ ("id", id):r))
+          return (M.fromList $ ("id", id):r)
     in
      ifTop $
        withCheckSecurity $ \_ mdl -> do
@@ -441,9 +441,11 @@ search =
                           (indices m)
                modifyResponse $ setContentType "application/json"
                -- Finally, list of matched instances
-               instances <- mapM (\id -> fetchInstance id $ instanceKey mname id) 
+               instances <- mapM (\id -> fetchInstance id $
+                                         instanceKey mname id)
                                  (searchType $ catMaybes termIds)
-               writeLBS (A.encode $ take itemLimit instances)
+               writeLBS $ A.encode (map hgetallToJson $
+                                        take itemLimit instances)
          return ()
 
 -----------------------------------------------------------------------------
