@@ -381,7 +381,7 @@ defaultSearchLimit = 100
 -- | Serve model instances which have index values containing supplied
 -- search parameters.
 --
--- TODO Adjustable item limit.
+-- TODO Allow to request only subset of fields and serve them in array.
 search :: Handler b (Redson b) ()
 search = 
     let
@@ -429,7 +429,7 @@ search =
                                            if (all isDigit s) then (read s)
                                            else defaultSearchLimit
                                _      -> defaultSearchLimit
-                                         
+
                -- Try to get search results for every index field
                termIds <- mapM (\i -> do
                                   p <- getParam i
