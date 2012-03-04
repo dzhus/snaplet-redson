@@ -39,7 +39,7 @@
     Prior to reading and writing form data, the server reads form
     (model) definition which from JSON files stored in directory set
     by `models-directory` setting (defaults to `resources/models/`),
-    unless `security-checking` setting is set to `false` (see below).
+    unless `transparent-mode` setting is set to `true` (see below).
 
     Form id is the basename of file which contains form definition.
 
@@ -198,8 +198,8 @@
 
     Per-field permissions (set in canRead and canWrite field
     properties) are checked prior to writing any data to Redis or
-    sending response to client. Implementation currently follows these
-    rules:
+    sending response to client (unless `transparent-mode` is `true`).
+    Implementation currently follows these rules:
 
     - No unreadable fields are sent to client on READ methods;
     - Attempt to perform any operation without being logged in results
