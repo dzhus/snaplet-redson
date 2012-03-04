@@ -49,6 +49,7 @@ import Database.Redis hiding (auth)
 
 import System.EasyFile
 
+import Snap.Snaplet.Redson.CRUD
 import Snap.Snaplet.Redson.Metamodel
 import Snap.Snaplet.Redson.Util
 
@@ -80,29 +81,11 @@ getModelId:: MonadSnap m => m B.ByteString
 getModelId = fromParam "id"
 
 
-------------------------------------------------------------------------------
--- | Build Redis key given model name and id
-instanceKey :: B.ByteString -> B.ByteString -> B.ByteString
-instanceKey model id = B.concat [model, ":", id]
-
 
 ------------------------------------------------------------------------------
 -- | Extract model instance Redis key from request parameters.
 getInstanceKey :: MonadSnap m => m B.ByteString
 getInstanceKey = liftM2 instanceKey getModelName getModelId
-
-
-------------------------------------------------------------------------------
--- | Get Redis key which stores id counter for model
-modelIdKey :: B.ByteString -> B.ByteString
-modelIdKey model = B.concat ["global:", model, ":id"]
-
-
-------------------------------------------------------------------------------
--- | Get Redis key which stores timeline for model
-modelTimeline :: B.ByteString -> B.ByteString
-modelTimeline model = B.concat ["global:", model, ":timeline"]
-
 
 ------------------------------------------------------------------------------
 -- | Try to get Model for current request.
@@ -207,30 +190,23 @@ jsonToHmset s =
 
 
 ------------------------------------------------------------------------------
--- | Create new instance in Redis.
+-- | Handle instance creation request
 --
 -- *TODO*: Use readRequestBody
-create :: Handler b (Redson b) ()
-create = ifTop $ do
+post :: Handler b (Redson b) ()
+post = ifTop $ do
   withCheckSecurity $ \au (Just mdl) -> do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
     case r of
       Nothing -> serverError
-      Just j -> do
-        when (not $ checkWrite au mdl j)
+      Just commit -> do
+        when (not $ checkWrite au mdl commit)
              forbidden
 
         name <- getModelName
         newId <- runRedisDB database $ do
-          -- Take id from global:model:id
-          Right n <- incr $ modelIdKey name
-          newId <- return $ (BU.fromString . show) n
-
-          -- Save new instance
-          _ <- hmset (instanceKey name newId) j
-          _ <- lpush (modelTimeline name) [newId]
-          return newId
+          create name commit
 
         ps <- gets events
         liftIO $ PS.publish ps $ creationMessage name newId
@@ -242,7 +218,7 @@ create = ifTop $ do
         -- resource
         modifyResponse $ (setContentType "application/json" . setResponseCode 201)
         -- Tell client new instance id in response JSON.
-        writeLBS $ A.encode $ M.fromList $ ("id", newId):j
+        writeLBS $ A.encode $ M.fromList $ ("id", newId):commit
         return ()
 
 
@@ -401,7 +377,7 @@ routes = [ (":model/timeline", method GET timeline)
          , (":model/events", modelEvents)
          , (":model/model", method GET metamodel)
          , ("_models", method GET listModels)
-         , (":model", method POST create)
+         , (":model", method POST post)
          , (":model/:id", method GET read')
          , (":model/:id", method PUT update)
          , (":model/:id", method DELETE delete)
