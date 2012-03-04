@@ -11,6 +11,8 @@ module Snap.Snaplet.Redson.CRUD
 
 where
 
+import Control.Monad.State
+
 import qualified Data.ByteString as B
 import qualified Data.ByteString.UTF8 as BU (fromString)
 import qualified Data.Map as M
@@ -18,6 +20,7 @@ import qualified Data.Map as M
 import Database.Redis
 
 import Snap.Snaplet.Redson.Metamodel
+import Snap.Snaplet.Redson.Util
 
 
 ------------------------------------------------------------------------------
@@ -40,8 +43,21 @@ modelTimeline model = B.concat ["global:", model, ":timeline"]
 
 ------------------------------------------------------------------------------
 -- | Build Redis key for field index of model.
-modelIndex :: B.ByteString -> B.ByteString -> B.ByteString
-modelIndex model field = B.concat [model, ":", field]
+modelIndex :: B.ByteString -- ^ Model name
+           -> B.ByteString -- ^ Field name
+           -> B.ByteString -- ^ Field value
+           -> B.ByteString
+modelIndex model field value = B.concat [model, ":", field, ":", value]
+
+
+------------------------------------------------------------------------------
+-- | Perform provided action for every indexed field in commit.
+forIndices :: Commit -> [FieldName] -> (FieldName -> Redis ()) -> Redis ()
+forIndices commit indices action =
+    mapM_ (\i -> case (M.lookup i commit) of
+                   Just v -> action v
+                   Nothing -> return ())
+        indices
 
 
 ------------------------------------------------------------------------------
@@ -53,14 +69,20 @@ modelIndex model field = B.concat [model, ":", field]
 create :: ModelName           -- ^ Model id
        -> Commit              -- ^ Key-values of instance data
        -> [FieldName]         -- ^ Index fields
-       -> Redis B.ByteString
-create name j indices = do
+       -> Redis (Either Error B.ByteString)
+create name commit indices = do
   -- Take id from global:model:id
   Right n <- incr $ modelIdKey name
   newId <- return $ (BU.fromString . show) n
 
   -- Save new instance
-  _ <- hmset (instanceKey name newId) (M.toList j)
+  _ <- hmset (instanceKey name newId) (M.toList commit)
   _ <- lpush (modelTimeline name) [newId]
 
-  return newId
+  -- Create indices
+  forIndices commit indices $
+                 \v -> when (v /= "") $
+                            sadd v [newId] >> return ()
+  return (Right newId)
+
+

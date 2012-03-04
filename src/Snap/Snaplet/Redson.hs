@@ -124,12 +124,12 @@ withCheckSecurity action = do
       m <- getsRequest rqMethod
       au <- withAuth currentUser
       case (au, mdl) of
-        (Nothing, _) -> unauthorized
-        (_, Nothing) -> forbidden
+        (Nothing, _) -> handleError unauthorized
+        (_, Nothing) -> handleError forbidden
         (Just user, Just model) ->
            case (elem m $ getModelPermissions (Right user) model) of
              True -> action (Right user) mdl
-             False -> forbidden
+             False -> handleError forbidden
 
 
 ------------------------------------------------------------------------------
@@ -196,13 +196,13 @@ post = ifTop $ do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
     case r of
-      Nothing -> serverError
+      Nothing -> handleError serverError
       Just commit -> do
-        when (not $ checkWrite au mdl commit)
-             forbidden
+        when (not $ checkWrite au mdl commit) $
+             handleError forbidden
 
         name <- getModelName
-        newId <- runRedisDB database $ do
+        Right newId <- runRedisDB database $ do
           create name commit (indices mdl)
 
         ps <- gets events
@@ -234,8 +234,8 @@ read' = ifTop $ do
       Right r <- hgetall key
       return r
 
-    when (null r)
-         notFound
+    when (null r) $
+         handleError notFound
 
     modifyResponse $ setContentType "application/json"
     writeLBS $ hgetallToJson $ (filterUnreadable au mdl (M.fromList r))
@@ -252,10 +252,10 @@ update = ifTop $ do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
     case r of
-      Nothing -> serverError
+      Nothing -> handleError serverError
       Just j -> do
-        when (not $ checkWrite au mdl j)
-             forbidden
+        when (not $ checkWrite au mdl j) $
+             handleError forbidden
 
         key <- getInstanceKey
         runRedisDB database $ hmset key (M.toList j)
@@ -280,8 +280,8 @@ delete = ifTop $ do
       Right r <- hgetall key
       return r
 
-    when (null r)
-         notFound
+    when (null r) $
+         handleError notFound
 
     runRedisDB database $ lrem (modelTimeline name) 1 id >> del [key]
 
@@ -333,7 +333,7 @@ metamodel :: Handler b (Redson b) ()
 metamodel = ifTop $ do
   withCheckSecurity $ \au mdl -> do
     case mdl of
-      Nothing -> notFound
+      Nothing -> handleError notFound
       Just m -> do
         modifyResponse $ setContentType "application/json"
         writeLBS (A.encode $ stripModel au m)
@@ -353,7 +353,7 @@ listModels = ifTop $ do
     False ->
       case au of
         -- Won't get to serving [] anyways.
-        Nothing -> unauthorized >> return []
+        Nothing -> handleError unauthorized >> return []
         -- Leave only readable models.
         Just user ->
             gets (filter (\(n, m) -> elem GET $
