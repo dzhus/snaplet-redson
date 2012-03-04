@@ -293,6 +293,26 @@
 
      : {"code":"076-2","title":"Able","description":"Really nasty thing","class":"Keter"}
 
+** Search
+   Search interface for model <modelname> is available under
+   `/_/<modelname>/search` access point via GET method. canRead form permission is
+   required to search for instances.
+
+   Accepted parameters are:
+
+   - key-value pairs where keys are index fields of model and values
+     are search terms;
+
+   - _limit parameter which sets maximum number of items served;
+     
+   - _matchType=p or _matchType=s for prefix search or substring
+     search of value in index field (prefix search is faster);
+
+   - _searchType=and or _searchType=or which indicates if all search
+     terms must match or just any of them.
+
+   Response is currently list of JSON objects for matched instances.
+   No per-field read permissions are checked.
 ** Extra features
 *** Timeline
 
@@ -344,6 +364,10 @@
    be changed without Redson restart anyways, and restart will be
    required when new users are added as well).
 
+** TODO [#A] Faster search
+   We should support serving of results as a table (array of arrays)
+   to avoid redundant field names served with every matched instance.
+   Client should be able to set fields to be served in output.
 ** BLOCKED Routing bug
    Snap fails to properly route requests to `/foo/bar/` if it's
    shadowed by `/foo/bar/:baz/` route even if `:baz` variable capture
