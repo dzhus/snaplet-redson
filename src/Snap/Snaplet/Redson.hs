@@ -21,9 +21,12 @@ import Data.Functor
 
 import Data.Aeson as A
 
+import Data.Char (isDigit)
+import Numeric (readDec)
+
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB (ByteString, readFile)
-import qualified Data.ByteString.UTF8 as BU (fromString)
+import qualified Data.ByteString.UTF8 as BU (fromString, toString)
 
 import Data.Configurator
 
@@ -371,19 +374,19 @@ listModels = ifTop $ do
                               ("title", title m)])
              readables)
 
+defaultSearchLimit :: Int
+defaultSearchLimit = 100
 
 -----------------------------------------------------------------------------
 -- | Serve model instances which have index values containing supplied
 -- search parameters.
 --
 -- TODO Adjustable item limit.
---
--- TODO Adjustable matching type (and/or, prefix/substring).
 search :: Handler b (Redson b) ()
 search = 
     let
         intersectAll = foldl1' intersect
-        unionAll = foldl1' intersect
+        unionAll = foldl1' union
         -- Get list of ids which match single search term
         getTermIds pattern = runRedisDB database $ do
           Right sets <- keys pattern
@@ -393,29 +396,52 @@ search =
               -- Hedis hangs when doing `suinion []`
               Right ids <- sunion sets
               return ids
+        -- Fetch instance by id to JSON
+        fetchInstance key = runRedisDB database $ do
+          Right r <- hgetall key
+          return (hgetallToJson (M.fromList r))
     in
      ifTop $
-       withCheckSecurity $ \au mdl -> do
+       withCheckSecurity $ \_ mdl -> do
          case mdl of
            Nothing -> handleError notFound
            Just m -> do
                mname <- getModelName
+               -- TODO: Mark these field names as reserved
+               mType <- getParam "_matchType"
+               sType <- getParam "_searchType"
+               iLimit <- getParam "_limit"
+               patFunction <- return $ case mType of
+                               Just "p"  -> prefixMatch
+                               Just "s"  -> substringMatch
+                               _         -> prefixMatch
+               searchType  <- return $ case sType of
+                               Just "and" -> intersectAll
+                               Just "or"  -> unionAll
+                               _          -> intersectAll
+
+               itemLimit   <- return $ case iLimit of
+                               Just b -> let 
+                                            s = BU.toString b
+                                         in
+                                           if (all isDigit s) then (read s)
+                                           else defaultSearchLimit
+                               _      -> defaultSearchLimit
+                                         
+               -- Try to get search results for every index field
                termIds <- mapM (\i -> do
                                   p <- getParam i
                                   case p of
                                     Nothing -> return Nothing
                                     Just s -> do
-                                      ids <- getTermIds (substringMatch mname i s)
+                                      ids <- getTermIds (patFunction mname i s)
                                       return $ Just ids)
                           (indices m)
-               -- Mark this field name as reserved
-               sType <- getParam "_searchType"
-               searchType <- return $ case sType of
-                               Just "and" -> intersectAll
-                               Just "or"  -> unionAll
-                               _          -> intersectAll
                modifyResponse $ setContentType "application/json"
-               writeLBS (A.encode $ searchType (catMaybes termIds))
+               -- Finally, list of matched instances
+               instances <- mapM (\id -> fetchInstance $ instanceKey mname id) 
+                                 (searchType $ catMaybes termIds)
+               writeLBS (A.encode $ take itemLimit instances)
          return ()
 
 -----------------------------------------------------------------------------
