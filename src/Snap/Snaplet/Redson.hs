@@ -164,12 +164,12 @@ deletionMessage = modelMessage "delete"
 ------------------------------------------------------------------------------
 -- | Encode Redis HGETALL reply to B.ByteString with JSON.
 hgetallToJson :: Commit -> LB.ByteString
-hgetallToJson r = A.encode $ M.fromList r
+hgetallToJson r = A.encode r
 
 
 ------------------------------------------------------------------------------
--- | Decode B.ByteString with JSON to list of hash keys & values for
--- Redis HMSET
+-- | Decode B.ByteString with JSON to map of hash keys & values for
+-- Redis HMSET (still to be `toList`-ed).
 --
 -- Return Nothing if parsing failed.
 jsonToHmset :: LB.ByteString -> Maybe Commit
@@ -181,9 +181,9 @@ jsonToHmset s =
         Nothing -> Nothing
         Just m ->
              -- Omit fields with null values and "id" key
-            Just (map (\(k, v) -> (k, fromJust v)) $
-                  filter (\(k, v) -> (isJust v && k /= "id")) $
-                  M.toList m)
+            Just (M.filterWithKey 
+                       (\k v -> k /= "id")
+                       m)
 
 
 ------------------------------------------------------------------------------
@@ -215,7 +215,7 @@ post = ifTop $ do
         -- resource
         modifyResponse $ (setContentType "application/json" . setResponseCode 201)
         -- Tell client new instance id in response JSON.
-        writeLBS $ A.encode $ M.fromList $ ("id", newId):commit
+        writeLBS $ A.encode $ M.insert "id" newId commit
         return ()
 
 
@@ -238,7 +238,7 @@ read' = ifTop $ do
          notFound
 
     modifyResponse $ setContentType "application/json"
-    writeLBS $ hgetallToJson (filterUnreadable au mdl r)
+    writeLBS $ hgetallToJson $ (filterUnreadable au mdl (M.fromList r))
     return ()
 
 
@@ -258,7 +258,7 @@ update = ifTop $ do
              forbidden
 
         key <- getInstanceKey
-        runRedisDB database $ hmset key j
+        runRedisDB database $ hmset key (M.toList j)
         modifyResponse $ setResponseCode 204
         return ()
 
@@ -286,7 +286,7 @@ delete = ifTop $ do
     runRedisDB database $ lrem (modelTimeline name) 1 id >> del [key]
 
     modifyResponse $ setContentType "application/json"
-    writeLBS (hgetallToJson r)
+    writeLBS (hgetallToJson (M.fromList r))
 
     ps <- gets events
     liftIO $ PS.publish ps $ deletionMessage name id

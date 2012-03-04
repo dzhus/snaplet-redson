@@ -19,6 +19,8 @@ import Data.ByteString.Lazy.UTF8
 import Data.Lens.Common
 import Data.Lens.Template
 
+import qualified Data.Map as M
+
 import Snap.Core (Method(..))
 import Snap.Snaplet.Auth
 
@@ -34,7 +36,7 @@ type FieldValue = B.ByteString
 -- | List of field key-value pairs.
 --
 -- Suitable for using with 'Database.Redis.hmset'.
-type Commit = [(FieldName, FieldValue)]
+type Commit = M.Map FieldName FieldValue
 
 
 -- | Field permissions property.
@@ -228,7 +230,7 @@ checkWrite (Left SuperUser)   _      _ = True
 checkWrite user@(Right _) model commit =
     let
         writables = snd $ getFieldPermissions user model
-        commitFields = map fst commit
+        commitFields = M.keys commit
     in
       all (flip elem writables) commitFields
 
@@ -242,7 +244,7 @@ filterUnreadable user@(Right _)   model commit =
     let
         readables = fst $ getFieldPermissions user model
     in
-      filter (\(k, v) -> elem k readables) commit
+      M.filterWithKey (\k _ -> elem k readables) commit
 
 
 -- | Filter out unreadable fields from model description, set

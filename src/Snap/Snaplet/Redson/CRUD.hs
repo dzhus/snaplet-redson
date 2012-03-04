@@ -13,6 +13,8 @@ where
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.UTF8 as BU (fromString)
+import qualified Data.Map as M
+
 import Database.Redis
 
 import Snap.Snaplet.Redson.Metamodel
@@ -58,6 +60,7 @@ create name j indices = do
   newId <- return $ (BU.fromString . show) n
 
   -- Save new instance
-  _ <- hmset (instanceKey name newId) j
+  _ <- hmset (instanceKey name newId) (M.toList j)
   _ <- lpush (modelTimeline name) [newId]
+
   return newId
