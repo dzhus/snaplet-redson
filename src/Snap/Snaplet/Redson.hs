@@ -176,6 +176,9 @@ commitToJson r = A.encode r
 -- Redis HMSET (still to be `toList`-ed).
 --
 -- Return Nothing if parsing failed.
+--
+-- Note that if JSON object contains `null` values, conversion will
+-- fail.
 jsonToCommit :: LB.ByteString -> Maybe Commit
 jsonToCommit s =
     let
