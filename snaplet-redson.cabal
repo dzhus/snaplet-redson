@@ -20,11 +20,11 @@ library
   ghc-options: -Wall -fno-warn-unused-do-bind
   hs-source-dirs: src
 
-  exposed-modules:      Snap.Snaplet.Redson
-  other-modules:        Snap.Snaplet.Redson.CRUD,
+  exposed-modules:      Snap.Snaplet.Redson,
+                        Snap.Snaplet.Redson.CRUD,
                         Snap.Snaplet.Redson.Metamodel,
                         Snap.Snaplet.Redson.Util
-  
+
   build-depends:        
     aeson               == 0.6.*,
     base                == 4.*,
