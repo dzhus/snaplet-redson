@@ -24,27 +24,30 @@ import Snap.Snaplet.Redson.Metamodel
 import Snap.Snaplet.Redson.Util
 
 
+type InstanceId = B.ByteString
+
+
 ------------------------------------------------------------------------------
 -- | Build Redis key given model name and instance id
-instanceKey :: B.ByteString -> B.ByteString -> B.ByteString
+instanceKey :: ModelName -> InstanceId -> B.ByteString
 instanceKey model id = B.concat [model, ":", id]
 
 
 ------------------------------------------------------------------------------
 -- | Get Redis key which stores id counter for model
-modelIdKey :: B.ByteString -> B.ByteString
+modelIdKey :: ModelName -> B.ByteString
 modelIdKey model = B.concat ["global:", model, ":id"]
 
 
 ------------------------------------------------------------------------------
 -- | Get Redis key which stores timeline for model
-modelTimeline :: B.ByteString -> B.ByteString
+modelTimeline :: ModelName -> B.ByteString
 modelTimeline model = B.concat ["global:", model, ":timeline"]
 
 
 ------------------------------------------------------------------------------
 -- | Build Redis key for field index of model.
-modelIndex :: B.ByteString -- ^ Model name
+modelIndex :: ModelName
            -> B.ByteString -- ^ Field name
            -> B.ByteString -- ^ Field value
            -> B.ByteString
@@ -67,7 +70,11 @@ forIndices commit indices action =
 
 ------------------------------------------------------------------------------
 -- | Create reverse indices for new commit.
-createIndices :: ModelName -> B.ByteString -> Commit -> [FieldName] -> Redis ()
+createIndices :: ModelName 
+              -> InstanceId
+              -> Commit 
+              -> [FieldName]               -- ^ Index fields
+              -> Redis ()
 createIndices name id commit indices =
     forIndices commit indices $
                    \i v -> when (v /= "") $
@@ -78,7 +85,7 @@ createIndices name id commit indices =
 -- | Remove indices previously created by commit (should contain all
 -- indexed fields only).
 deleteIndices :: ModelName 
-              -> B.ByteString              -- ^ Instance id.
+              -> InstanceId                -- ^ Instance id.
               -> [(FieldName, FieldValue)] -- ^ Commit with old
                                            -- indexed values (zipped
                                            -- from HMGET).
@@ -95,7 +102,7 @@ deleteIndices name id commit indices =
 -- Bump model id counter and update timeline, return new instance id.
 --
 -- TODO: Support pubsub from here
-create :: ModelName           -- ^ Model id
+create :: ModelName           -- ^ Model name
        -> Commit              -- ^ Key-values of instance data
        -> [FieldName]         -- ^ Index fields
        -> Redis (Either Error B.ByteString)
@@ -118,7 +125,7 @@ create name commit indices = do
 --
 -- TODO: Handle non-existing instance as error here?
 update :: ModelName
-       -> B.ByteString
+       -> InstanceId
        -> Commit
        -> [FieldName]
        -> Redis (Either Error ())
