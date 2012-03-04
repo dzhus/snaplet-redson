@@ -11,6 +11,8 @@ module Snap.Snaplet.Redson.CRUD
 
 where
 
+import Prelude hiding (id)
+
 import Control.Monad.State
 import Data.Maybe
 
@@ -62,10 +64,11 @@ forIndices :: Commit
            -> [FieldName] 
            -> (FieldName -> FieldValue -> Redis ())
            -> Redis ()
-forIndices commit indices action =
+forIndices commit findices action =
     mapM_ (\i -> case (M.lookup i commit) of
-                   Just v -> action i v)
-        indices
+                   Just v -> action i v
+                   Nothing -> return ())
+        findices
 
 
 ------------------------------------------------------------------------------
@@ -75,10 +78,10 @@ createIndices :: ModelName
               -> Commit 
               -> [FieldName]               -- ^ Index fields
               -> Redis ()
-createIndices name id commit indices =
-    forIndices commit indices $
+createIndices mname id commit findices =
+    forIndices commit findices $
                    \i v -> when (v /= "") $
-                           sadd (modelIndex name i v) [id] >> return ()
+                           sadd (modelIndex mname i v) [id] >> return ()
 
 
 ------------------------------------------------------------------------------
@@ -89,10 +92,9 @@ deleteIndices :: ModelName
               -> [(FieldName, FieldValue)] -- ^ Commit with old
                                            -- indexed values (zipped
                                            -- from HMGET).
-              -> [FieldName]               -- ^ Index fields
               -> Redis ()
-deleteIndices name id commit indices =
-    mapM_ (\(i, v) -> srem (modelIndex name i v) [id])
+deleteIndices mname id commit =
+    mapM_ (\(i, v) -> srem (modelIndex mname i v) [id])
           commit
 
 
@@ -106,17 +108,17 @@ create :: ModelName           -- ^ Model name
        -> Commit              -- ^ Key-values of instance data
        -> [FieldName]         -- ^ Index fields
        -> Redis (Either Error B.ByteString)
-create name commit indices = do
+create mname commit findices = do
   -- Take id from global:model:id
-  Right n <- incr $ modelIdKey name
+  Right n <- incr $ modelIdKey mname
   newId <- return $ (BU.fromString . show) n
 
   -- Save new instance
-  _ <- hmset (instanceKey name newId) (M.toList commit)
-  _ <- lpush (modelTimeline name) [newId]
+  _ <- hmset (instanceKey mname newId) (M.toList commit)
+  _ <- lpush (modelTimeline mname) [newId]
 
   -- Create indices
-  createIndices name newId commit indices
+  createIndices mname newId commit findices
   return (Right newId)
 
 
@@ -129,13 +131,13 @@ update :: ModelName
        -> Commit
        -> [FieldName]
        -> Redis (Either Error ())
-update name id commit indices = 
+update mname id commit findices = 
   let
-      key = instanceKey name id
+      key = instanceKey mname id
   in do
-    Right old <- hmget key indices
+    Right old <- hmget key findices
     hmset key (M.toList commit)
 
-    deleteIndices name id (zip indices (catMaybes old)) indices
-    createIndices name id commit indices
+    deleteIndices mname id (zip findices (catMaybes old))
+    createIndices mname id commit findices
     return (Right ())
