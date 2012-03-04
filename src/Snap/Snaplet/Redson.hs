@@ -16,7 +16,7 @@ where
 
 import Prelude hiding (concat, FilePath)
 
-import Control.Monad.State
+import Control.Monad.State hiding (put)
 import Control.Monad.Trans
 import Data.Functor
 
@@ -89,6 +89,8 @@ getInstanceKey = liftM2 instanceKey getModelName getModelId
 
 ------------------------------------------------------------------------------
 -- | Try to get Model for current request.
+--
+-- TODO: Return special model for transparent-mode.
 getModel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Model)
 getModel = liftM2 M.lookup getModelName (gets models)
 
@@ -202,8 +204,8 @@ post = ifTop $ do
              handleError forbidden
 
         name <- getModelName
-        Right newId <- runRedisDB database $ do
-          create name commit (indices mdl)
+        Right newId <- runRedisDB database $
+           create name commit (indices mdl)
 
         ps <- gets events
         liftIO $ PS.publish ps $ creationMessage name newId
@@ -243,11 +245,11 @@ read' = ifTop $ do
 
 
 ------------------------------------------------------------------------------
--- | Update existing instance in Redis.
+-- | Handle PUT request for existing instance in Redis.
 --
 -- *TODO* Report 201 if previously existed
-update :: Handler b (Redson b) ()
-update = ifTop $ do
+put :: Handler b (Redson b) ()
+put = ifTop $ do
   withCheckSecurity $ \au (Just mdl) -> do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
@@ -257,8 +259,10 @@ update = ifTop $ do
         when (not $ checkWrite au mdl j) $
              handleError forbidden
 
-        key <- getInstanceKey
-        runRedisDB database $ hmset key (M.toList j)
+        id <- getModelId
+        name <- getModelName        
+        runRedisDB database $ 
+           update name id j (indices mdl)
         modifyResponse $ setResponseCode 204
         return ()
 
@@ -376,7 +380,7 @@ routes = [ (":model/timeline", method GET timeline)
          , ("_models", method GET listModels)
          , (":model", method POST post)
          , (":model/:id", method GET read')
-         , (":model/:id", method PUT update)
+         , (":model/:id", method PUT put)
          , (":model/:id", method DELETE delete)
          ]
 

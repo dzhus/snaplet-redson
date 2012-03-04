@@ -82,7 +82,23 @@ create name commit indices = do
   -- Create indices
   forIndices commit indices $
                  \v -> when (v /= "") $
-                            sadd v [newId] >> return ()
+                       sadd v [newId] >> return ()
   return (Right newId)
 
 
+------------------------------------------------------------------------------
+-- | Modify existing instance in Redis.
+update :: ModelName
+       -> B.ByteString
+       -> Commit
+       -> [FieldName]
+       -> Redis (Either Error ())
+update name id commit indices = 
+  let
+      key = instanceKey name id
+  in do
+    hmset key (M.toList commit)
+    forIndices commit indices $
+                   \v -> when (v /= "") $
+                         sadd v [newId] >> return ()
+    return (Right ())
