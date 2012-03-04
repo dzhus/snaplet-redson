@@ -57,6 +57,27 @@ modelIndex model field value = B.concat [model, ":", field, ":", value]
 
 
 ------------------------------------------------------------------------------
+-- | Build Redis key pattern for matching prefix of values for index
+-- field of model.
+prefixMatch :: ModelName
+            -> FieldName
+            -> FieldValue
+            -> B.ByteString
+prefixMatch model field value = B.append (modelIndex model field value) "*"
+
+
+------------------------------------------------------------------------------
+-- | Build Redis key pattern for matching prefix of values for index
+-- field of model.
+substringMatch :: ModelName
+               -> FieldName
+               -> FieldValue
+               -> B.ByteString
+substringMatch model field value =
+    B.concat [model, ":", field, ":*", value, "*"]
+
+
+------------------------------------------------------------------------------
 -- | Perform provided action for every indexed field in commit.
 --
 -- Action is called with index field name and its value in commit.

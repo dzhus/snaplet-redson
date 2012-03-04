@@ -30,7 +30,10 @@ import Data.Configurator
 import Data.Lens.Common
 import Data.Lens.Template
 
+import Data.List (foldl1', intersect, union)
 import qualified Data.Map as M
+
+import Data.Maybe
 
 import Snap.Core
 import Snap.Snaplet
@@ -370,6 +373,52 @@ listModels = ifTop $ do
 
 
 -----------------------------------------------------------------------------
+-- | Serve model instances which have index values containing supplied
+-- search parameters.
+--
+-- TODO Adjustable item limit.
+--
+-- TODO Adjustable matching type (and/or, prefix/substring).
+search :: Handler b (Redson b) ()
+search = 
+    let
+        intersectAll = foldl1' intersect
+        unionAll = foldl1' intersect
+        -- Get list of ids which match single search term
+        getTermIds pattern = runRedisDB database $ do
+          Right sets <- keys pattern
+          case sets of
+            [] -> return []
+            _ -> do
+              -- Hedis hangs when doing `suinion []`
+              Right ids <- sunion sets
+              return ids
+    in
+     ifTop $
+       withCheckSecurity $ \au mdl -> do
+         case mdl of
+           Nothing -> handleError notFound
+           Just m -> do
+               mname <- getModelName
+               termIds <- mapM (\i -> do
+                                  p <- getParam i
+                                  case p of
+                                    Nothing -> return Nothing
+                                    Just s -> do
+                                      ids <- getTermIds (substringMatch mname i s)
+                                      return $ Just ids)
+                          (indices m)
+               -- Mark this field name as reserved
+               sType <- getParam "_searchType"
+               searchType <- return $ case sType of
+                               Just "and" -> intersectAll
+                               Just "or"  -> unionAll
+                               _          -> intersectAll
+               modifyResponse $ setContentType "application/json"
+               writeLBS (A.encode $ searchType (catMaybes termIds))
+         return ()
+
+-----------------------------------------------------------------------------
 -- | CRUD routes for models.
 routes :: [(B.ByteString, Handler b (Redson b) ())]
 routes = [ (":model/timeline", method GET timeline)
@@ -380,6 +429,7 @@ routes = [ (":model/timeline", method GET timeline)
          , (":model/:id", method GET read')
          , (":model/:id", method PUT put)
          , (":model/:id", method DELETE delete)
+         , (":model/search/", method GET search)
          ]
 
 
