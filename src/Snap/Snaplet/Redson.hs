@@ -163,9 +163,6 @@ deletionMessage = modelMessage "delete"
 
 ------------------------------------------------------------------------------
 -- | Encode Redis HGETALL reply to B.ByteString with JSON.
---
--- Note using explicit B.ByteString type over BS s as suggested by
--- redis because BS s doesn't imply ToJSON s.
 hgetallToJson :: Commit -> LB.ByteString
 hgetallToJson r = A.encode $ M.fromList r
 
