@@ -98,6 +98,7 @@ instance ToJSON Model where
     toJSON mdl = object
       [ "title"      .= title mdl
       , "fields"     .= fields mdl
+      , "indices"    .= indices mdl
       , "canCreate"  .= _canCreateF mdl
       , "canRead"    .= _canReadF mdl
       , "canUpdate"  .= _canUpdateF mdl
