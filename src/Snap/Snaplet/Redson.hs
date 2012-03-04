@@ -397,9 +397,9 @@ search =
               Right ids <- sunion sets
               return ids
         -- Fetch instance by id to JSON
-        fetchInstance key id = runRedisDB database $ do
+        fetchInstance id key = runRedisDB database $ do
           Right r <- hgetall key
-          return $ (M.fromList r)
+          return $ (M.fromList $ ("id", id):r)
     in
      ifTop $
        withCheckSecurity $ \_ mdl -> do
