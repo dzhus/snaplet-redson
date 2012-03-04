@@ -190,7 +190,7 @@ jsonToHmset s =
 -- *TODO*: Use readRequestBody
 post :: Handler b (Redson b) ()
 post = ifTop $ do
-  withCheckSecurity $ \au (Just mdl) -> do
+  withCheckSecurity $ \au mdl -> do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
     case r of
@@ -201,7 +201,7 @@ post = ifTop $ do
 
         mname <- getModelName
         Right newId <- runRedisDB database $
-           create mname commit (indices mdl)
+           create mname commit (maybe [] indices mdl)
 
         ps <- gets events
         liftIO $ PS.publish ps $ creationMessage mname newId
@@ -226,7 +226,7 @@ read' = ifTop $ do
   when (B.null id)
        pass
 
-  withCheckSecurity $ \au (Just mdl) -> do
+  withCheckSecurity $ \au mdl -> do
     key <- getInstanceKey
     r <- runRedisDB database $ do
       Right r <- hgetall key
@@ -246,7 +246,7 @@ read' = ifTop $ do
 -- *TODO* Report 201 if could create new instance.
 put :: Handler b (Redson b) ()
 put = ifTop $ do
-  withCheckSecurity $ \au (Just mdl) -> do
+  withCheckSecurity $ \au mdl -> do
     -- Parse request body to list of pairs
     r <- jsonToHmset <$> getRequestBody
     case r of
@@ -258,7 +258,7 @@ put = ifTop $ do
         id <- getModelId
         mname <- getModelName        
         resp <- runRedisDB database $ 
-           update mname id j (indices mdl)
+           update mname id j (maybe [] indices mdl)
         case resp of
           Left err -> handleError err
           Right _ -> modifyResponse $ setResponseCode 204

@@ -225,10 +225,12 @@ getModelPermissions (Right user) model =
 
 -- | Check permissions to write the given set of model fields.
 --
--- 'SuperUser' can always write to any set of fields.
-checkWrite :: User -> Model -> Commit -> Bool
-checkWrite (Left SuperUser)   _      _ = True
-checkWrite user@(Right _) model commit =
+-- 'SuperUser' can always write to any set of fields. When there's no
+-- model, always succeed.
+checkWrite :: User -> (Maybe Model) -> Commit -> Bool
+checkWrite (Left SuperUser) _           _ = True
+checkWrite _                Nothing     _ = True
+checkWrite user@(Right _)  (Just model) commit =
     let
         writables = snd $ getFieldPermissions user model
         commitFields = M.keys commit
@@ -239,9 +241,10 @@ checkWrite user@(Right _) model commit =
 -- | Filter out commit fields which are not readable by user.
 --
 -- 'SuperUser' can always read all fields.
-filterUnreadable :: User -> Model -> Commit -> Commit
-filterUnreadable (Left SuperUser) _     commit = commit
-filterUnreadable user@(Right _)   model commit =
+filterUnreadable :: User -> Maybe Model -> Commit -> Commit
+filterUnreadable (Left SuperUser) _           commit = commit
+filterUnreadable _                Nothing     commit = commit
+filterUnreadable user@(Right _)  (Just model) commit =
     let
         readables = fst $ getFieldPermissions user model
     in
