@@ -36,6 +36,15 @@ instanceKey model id = B.concat [model, ":", id]
 
 
 ------------------------------------------------------------------------------
+-- | Cut instance model and id from Redis key
+--
+-- >>> keyToId "case:32198"
+-- 32198
+keyToId :: B.ByteString -> InstanceId
+keyToId key = B.tail $ B.dropWhile (/= 0x3a) key
+
+
+------------------------------------------------------------------------------
 -- | Get Redis key which stores id counter for model
 modelIdKey :: ModelName -> B.ByteString
 modelIdKey model = B.concat ["global:", model, ":id"]
@@ -128,7 +137,7 @@ deleteIndices mname id commit =
 create :: ModelName           -- ^ Model name
        -> Commit              -- ^ Key-values of instance data
        -> [FieldName]         -- ^ Index fields
-       -> Redis (Either Error B.ByteString)
+       -> Redis (Either Error InstanceId)
 create mname commit findices = do
   -- Take id from global:model:id
   Right n <- incr $ modelIdKey mname
