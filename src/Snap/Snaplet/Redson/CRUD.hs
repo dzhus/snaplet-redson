@@ -6,6 +6,8 @@ Snap-agnostic low-level CRUD operations.
 
 This module may be used for batch uploading of database data.
 
+TODO Delete operation (with index clearing).
+
 -}
 module Snap.Snaplet.Redson.CRUD
 
