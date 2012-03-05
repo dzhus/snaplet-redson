@@ -397,6 +397,9 @@ search =
             [] -> return []
             _ -> do
               -- Hedis hangs when doing `suinion []`
+              -- 
+              -- TODO Use sunionstore and perform further operations
+              -- on Redis as well.
               Right ids <- sunion sets
               return ids
         -- Fetch instance by id to JSON
