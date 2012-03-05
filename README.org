@@ -123,7 +123,7 @@
         and does not expect unreadable fields in server response.
         
 
-***** /referencables/
+***** IN_PROGRESS /referencables/
       `referencables` key must be present if field type is
       `reference`, and holds list of models referencable from this
       field. Client may use this field to provide chooser interface to
