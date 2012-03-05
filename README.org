@@ -133,8 +133,8 @@
       The server does not check if actual field value matches any of
       referencable models.
 ***** /index/
-      Boolean which instructs server to create exact reverse index on
-      that field on create/update operations.
+      Boolean which instructs server to create or update exact reverse
+      index on that field on create/update/delete operations.
 
       Redis key used is <modelname>:<field>:<value>, value stored is a
       set of instance ids with that value for indexed field.

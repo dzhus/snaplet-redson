@@ -278,7 +278,7 @@ put = ifTop $ do
 -- | Delete instance from Redis (including timeline).
 delete :: Handler b (Redson b) ()
 delete = ifTop $ do
-  withCheckSecurity $ \_ _ -> do
+  withCheckSecurity $ \_ mdl -> do
     id <- getModelId
     mname <- getModelName
     key <- getInstanceKey
@@ -294,7 +294,7 @@ delete = ifTop $ do
     when (null r) $
          handleError notFound
 
-    runRedisDB database $ lrem (modelTimeline mname) 1 id >> del [key]
+    runRedisDB database $ remove mname id (maybe [] indices mdl)
 
     modifyResponse $ setContentType "application/json"
     writeLBS (commitToJson (M.fromList r))

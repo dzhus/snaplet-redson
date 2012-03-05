@@ -131,7 +131,7 @@ deleteIndices mname id commit =
 
 
 ------------------------------------------------------------------------------
--- | Create new instance in Redis.
+-- | Create new instance in Redis and indices for it.
 --
 -- Bump model id counter and update timeline, return new instance id.
 --
@@ -149,13 +149,12 @@ create mname commit findices = do
   _ <- hmset (instanceKey mname newId) (M.toList commit)
   _ <- lpush (modelTimeline mname) [newId]
 
-  -- Create indices
   createIndices mname newId commit findices
   return (Right newId)
 
 
 ------------------------------------------------------------------------------
--- | Modify existing instance in Redis.
+-- | Modify existing instance in Redis, updating indices
 --
 -- TODO: Handle non-existing instance as error here?
 update :: ModelName
@@ -172,4 +171,22 @@ update mname id commit findices =
 
     deleteIndices mname id (zip findices (catMaybes old))
     createIndices mname id commit findices
+
     return (Right ())
+
+------------------------------------------------------------------------------
+-- | Remove existing instance in Redis, cleaning up old indices.
+--
+-- Does not check if instance exists.
+remove :: ModelName
+       -> InstanceId
+       -> [FieldName]
+       -> Redis (Either Error ())
+remove mname id findices = 
+    let
+        key = instanceKey mname id
+    in do
+      Right old <- hmget key findices
+      lrem (modelTimeline mname) 1 id >> del [key]
+      deleteIndices mname id (zip findices (catMaybes old))
+      return (Right ())
