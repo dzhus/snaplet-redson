@@ -389,6 +389,9 @@
 ** MAYBE Update inverse references
    When instance of model becomes referenced by another instance,
    inverse reference should be updated by server.
+
+   Perhaps orphan dependent models should be cleared if parent is
+   deleted.
 ** TODO Force default values when creating instance
 ** TODO Configurable pool size
 
