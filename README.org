@@ -90,11 +90,20 @@
       - "text",
       - "textarea",
       - "checkbox",
-      - "select".
+      - "select",
+      - "reference"
 
       Default field type is `text`
 
       Client uses type data to properly render field contents.
+
+      If type of field is `reference`, then field value is a reference
+      to another form. The client may provide interface to edit or
+      view the subform. The actual value provided for the form field
+      with `slot` tag should be `<formname>:<instanceid>` string,
+      where `<formname>` is the name of form to which the reference is
+      stored and `<instanceid>` is the id of specific instance of that
+      form.
       
 ***** /canRead / canWrite/
       Per-field permissions have the same syntax as per-field per-form
@@ -114,15 +123,11 @@
         and does not expect unreadable fields in server response.
         
 
-***** /slot/ (proposed)
-      If `slot` key is present in field description, then field values
-      is a reference to another form. The client may provide interface
-      to edit or view the subform. The actual value provided for the
-      form field with `slot` tag should be `<formname>:<instanceid>`
-      string, where `<formname>` is the name of form to which the
-      reference is stored and `<instanceid>` is the id of specific
-      instance of that form. Redson does not check if formname or
-      instanceid are valid or exist in database.
+***** /reference-model/
+      `reference-model` key must be present if field type is
+      `reference`, and holds list of models referencable from this
+      field. Client may use this field to provide chooser interface to
+      pick a specific model to store reference to.
 ***** /index/
       Boolean which instructs server to create exact reverse index on
       that field on create/update operations.
@@ -377,6 +382,7 @@
    `/_/<formname>/` requests to emptyPage handler by checking `id`
    parameter value in read handler.
    
+** TODO Force default values when creating instance
 ** TODO Configurable pool size
 
 ** TODO WebSockets interface improvement
