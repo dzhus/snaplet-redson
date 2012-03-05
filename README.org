@@ -123,11 +123,15 @@
         and does not expect unreadable fields in server response.
         
 
-***** /reference-model/
-      `reference-model` key must be present if field type is
+***** /referencables/
+      `referencables` key must be present if field type is
       `reference`, and holds list of models referencable from this
       field. Client may use this field to provide chooser interface to
-      pick a specific model to store reference to.
+      pick a specific model to store reference to. Empty list is the
+      same as null.
+
+      The server does not check if actual field value matches any of
+      referencable models.
 ***** /index/
       Boolean which instructs server to create exact reverse index on
       that field on create/update operations.

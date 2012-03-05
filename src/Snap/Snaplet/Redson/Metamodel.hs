@@ -55,6 +55,7 @@ data Field = Field { name           :: FieldName
                    , index          :: Bool
                    , required       :: Maybe Bool
                    , invisible      :: Maybe Bool
+                   , referencables  :: Maybe [ModelName]
                    , canRead        :: Permissions
                    , canWrite       :: Permissions
                    }
@@ -128,22 +129,24 @@ instance FromJSON Field where
       v .:? "index"    .!= False        <*>
       v .:? "required"                  <*>
       v .:? "invisible"                 <*>
+      v .:? "reference-models"          <*>
       v .:? "canRead"  .!= Nobody       <*>
       v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse field properties"
 
 instance ToJSON Field where
     toJSON f = object
-      [ "name"       .= name f
-      , "type"       .= fieldType f
-      , "label"      .= label f
-      , "choice"     .= choice f
-      , "default"    .= defaultVal f
-      , "index"      .= index f
-      , "required"   .= required f
-      , "invisible"  .= invisible f
-      , "canRead"    .= canRead f
-      , "canWrite"   .= canWrite f
+      [ "name"          .= name f
+      , "type"          .= fieldType f
+      , "label"         .= label f
+      , "choice"        .= choice f
+      , "default"       .= defaultVal f
+      , "index"         .= index f
+      , "required"      .= required f
+      , "invisible"     .= invisible f
+      , "canRead"       .= canRead f
+      , "canWrite"      .= canWrite f
+      , "referencables" .= referencables f
       ]
 
 
