@@ -1,4 +1,4 @@
-#+SEQ_TODO: MAYBE SOMEDAY BLOCKED TODO WAITING | DONE
+#+SEQ_TODO: MAYBE SOMEDAY BLOCKED TODO IN_PROGRESS | DONE
 
 * Overview
   This snaplet provides create-read-update-delete operations for any
