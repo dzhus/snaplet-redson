@@ -386,6 +386,9 @@
    `/_/<formname>/` requests to emptyPage handler by checking `id`
    parameter value in read handler.
    
+** MAYBE Update inverse references
+   When instance of model becomes referenced by another instance,
+   inverse reference should be updated by server.
 ** TODO Force default values when creating instance
 ** TODO Configurable pool size
 
