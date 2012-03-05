@@ -165,11 +165,15 @@ update :: ModelName
 update mname id commit findices = 
   let
       key = instanceKey mname id
+      unpacked = M.toList commit
+      newFields = map fst unpacked
   in do
     Right old <- hmget key findices
-    hmset key (M.toList commit)
+    hmset key unpacked
 
-    deleteIndices mname id (zip findices (catMaybes old))
+    deleteIndices mname id $ 
+                  zip (filter (flip elem newFields) findices)
+                      (catMaybes old)
     createIndices mname id commit findices
 
     return (Right ())
