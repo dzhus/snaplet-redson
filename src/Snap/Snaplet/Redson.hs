@@ -446,11 +446,14 @@ search =
                                       return $ Just ids)
                           (indices m)
                modifyResponse $ setContentType "application/json"
-               -- Finally, list of matched instances
-               instances <- mapM (\id -> fetchInstance id $
-                                         instanceKey mname id)
-                                 (searchType $ catMaybes termIds)
-               writeLBS $ A.encode (take itemLimit instances)
+               case (catMaybes termIds) of
+                 [] -> writeLBS $ A.encode ([] :: [Value])
+                 tids -> do
+                       -- Finally, list of matched instances
+                       instances <- mapM (\id -> fetchInstance id $
+                                                 instanceKey mname id)
+                                    (searchType tids)
+                       writeLBS $ A.encode (take itemLimit instances)
          return ()
 
 -----------------------------------------------------------------------------
