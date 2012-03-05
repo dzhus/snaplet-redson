@@ -385,6 +385,8 @@ defaultSearchLimit = 100
 -- search parameters.
 --
 -- TODO Allow to request only subset of fields and serve them in array.
+--
+-- TODO Longcode is long.
 search :: Handler b (Redson b) ()
 search = 
     let
