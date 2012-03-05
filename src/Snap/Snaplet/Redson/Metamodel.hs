@@ -129,7 +129,7 @@ instance FromJSON Field where
       v .:? "index"    .!= False        <*>
       v .:? "required"                  <*>
       v .:? "invisible"                 <*>
-      v .:? "reference-models"          <*>
+      v .:? "referencables"             <*>
       v .:? "canRead"  .!= Nobody       <*>
       v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse field properties"
