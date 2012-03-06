@@ -2,14 +2,24 @@
 
 {-|
 
-Snap-agnostic low-level CRUD operations.
+Snap-agnostic low-level CRUD operations. 
+
+(This module may be refactored to a separate package.)
 
 This module may be used for batch uploading of database data.
 
-TODO Delete operation (with index clearing).
-
 -}
 module Snap.Snaplet.Redson.CRUD
+    ( -- * CRUD operations
+      create
+    , update
+    , delete
+    -- * Redis helpers
+    , InstanceId
+    , instanceKey
+    , modelIndex
+    , modelTimeline
+    )
 
 where
 
@@ -65,27 +75,6 @@ modelIndex :: ModelName
            -> B.ByteString -- ^ Field value
            -> B.ByteString
 modelIndex model field value = B.concat [model, ":", field, ":", value]
-
-
-------------------------------------------------------------------------------
--- | Build Redis key pattern for matching prefix of values for index
--- field of model.
-prefixMatch :: ModelName
-            -> FieldName
-            -> FieldValue
-            -> B.ByteString
-prefixMatch model field value = B.append (modelIndex model field value) "*"
-
-
-------------------------------------------------------------------------------
--- | Build Redis key pattern for matching prefix of values for index
--- field of model.
-substringMatch :: ModelName
-               -> FieldName
-               -> FieldValue
-               -> B.ByteString
-substringMatch model field value =
-    B.concat [model, ":", field, ":*", value, "*"]
 
 
 ------------------------------------------------------------------------------
@@ -182,11 +171,11 @@ update mname id commit findices =
 -- | Remove existing instance in Redis, cleaning up old indices.
 --
 -- Does not check if instance exists.
-remove :: ModelName
+delete :: ModelName
        -> InstanceId
        -> [FieldName]
        -> Redis (Either Error ())
-remove mname id findices = 
+delete mname id findices = 
     let
         key = instanceKey mname id
     in do

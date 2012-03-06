@@ -10,8 +10,10 @@ Can be used as Backbone.sync backend.
 
 -}
 
-module Snap.Snaplet.Redson (Redson
-                           , redsonInit)
+module Snap.Snaplet.Redson 
+    (Redson
+    , redsonInit)
+
 where
 
 import Prelude hiding (concat, FilePath, id)
@@ -51,8 +53,9 @@ import Database.Redis hiding (auth)
 
 import System.EasyFile
 
-import Snap.Snaplet.Redson.CRUD
+import qualified Snap.Snaplet.Redson.CRUD as CRUD
 import Snap.Snaplet.Redson.Metamodel
+import Snap.Snaplet.Redson.Search
 import Snap.Snaplet.Redson.Util
 
 ------------------------------------------------------------------------------
@@ -79,7 +82,7 @@ getModelName = fromParam "model"
 
 ------------------------------------------------------------------------------
 -- | Extract model instance id from request parameter.
-getModelId:: MonadSnap m => m InstanceId
+getModelId:: MonadSnap m => m CRUD.InstanceId
 getModelId = fromParam "id"
 
 
@@ -87,7 +90,7 @@ getModelId = fromParam "id"
 ------------------------------------------------------------------------------
 -- | Extract model instance Redis key from request parameters.
 getInstanceKey :: MonadSnap m => m B.ByteString
-getInstanceKey = liftM2 instanceKey getModelName getModelId
+getInstanceKey = liftM2 CRUD.instanceKey getModelName getModelId
 
 ------------------------------------------------------------------------------
 -- | Try to get Model for current request.
@@ -141,7 +144,7 @@ withCheckSecurity action = do
 -- creation or deletion of model instance.
 modelMessage :: B.ByteString
              -> (ModelName
-                 -> InstanceId
+                 -> CRUD.InstanceId
                  -> Network.WebSockets.Message p)
 modelMessage event = \model id ->
     let
@@ -154,13 +157,13 @@ modelMessage event = \model id ->
 
 -- | Model instance creation message.
 creationMessage :: ModelName
-                -> InstanceId
+                -> CRUD.InstanceId
                 -> Network.WebSockets.Message p
 creationMessage = modelMessage "create"
 
 -- | Model instance deletion message.
 deletionMessage :: ModelName
-                -> InstanceId
+                -> CRUD.InstanceId
                 -> Network.WebSockets.Message p
 deletionMessage = modelMessage "delete"
 
@@ -210,7 +213,7 @@ post = ifTop $ do
 
         mname <- getModelName
         Right newId <- runRedisDB database $
-           create mname commit (maybe [] indices mdl)
+           CRUD.create mname commit (maybe [] indices mdl)
 
         ps <- gets events
         liftIO $ PS.publish ps $ creationMessage mname newId
@@ -267,7 +270,7 @@ put = ifTop $ do
         id <- getModelId
         mname <- getModelName        
         resp <- runRedisDB database $ 
-           update mname id j (maybe [] indices mdl)
+           CRUD.update mname id j (maybe [] indices mdl)
         case resp of
           Left err -> handleError err
           Right _ -> modifyResponse $ setResponseCode 204
@@ -294,7 +297,7 @@ delete = ifTop $ do
     when (null r) $
          handleError notFound
 
-    runRedisDB database $ remove mname id (maybe [] indices mdl)
+    runRedisDB database $ CRUD.delete mname id (maybe [] indices mdl)
 
     modifyResponse $ setContentType "application/json"
     writeLBS (commitToJson (M.fromList r))
@@ -313,7 +316,7 @@ timeline = ifTop $ do
     mname <- getModelName
 
     r <- runRedisDB database $ do
-      Right r <- lrange (modelTimeline mname) 0 9
+      Right r <- lrange (CRUD.modelTimeline mname) 0 9
       return r
 
     modifyResponse $ setContentType "application/json"
@@ -377,86 +380,66 @@ listModels = ifTop $ do
                               ("title", title m)])
              readables)
 
+
 defaultSearchLimit :: Int
 defaultSearchLimit = 100
+
 
 -----------------------------------------------------------------------------
 -- | Serve model instances which have index values containing supplied
 -- search parameters.
 --
 -- TODO Allow to request only subset of fields and serve them in array.
---
--- TODO Longcode is long.
 search :: Handler b (Redson b) ()
 search = 
     let
         intersectAll = foldl1' intersect
         unionAll = foldl1' union
-        -- Get list of ids which match single search term
-        getTermIds pattern = runRedisDB database $ do
-          Right sets <- keys pattern
-          case sets of
-            [] -> return []
-            _ -> do
-              -- Hedis hangs when doing `suinion []`
-              -- 
-              -- TODO Use sunionstore and perform further operations
-              -- on Redis as well.
-              Right ids <- sunion sets
-              return ids
         -- Fetch instance by id to JSON
         fetchInstance id key = runRedisDB database $ do
-          Right r <- hgetall key
-          return $ (M.fromList $ ("id", id):r)
+                                 Right r <- hgetall key
+                                 return $ (M.fromList $ ("id", id):r)
     in
-     ifTop $
-       withCheckSecurity $ \_ mdl -> do
-         case mdl of
-           Nothing -> handleError notFound
-           Just m -> do
-               mname <- getModelName
-               -- TODO: Mark these field names as reserved
-               mType <- getParam "_matchType"
-               sType <- getParam "_searchType"
-               iLimit <- getParam "_limit"
+      ifTop $ withCheckSecurity $ \_ mdl -> do
+        case mdl of
+          Nothing -> handleError notFound
+          Just m -> do
+              mname <- getModelName
+              -- TODO: Mark these field names as reserved
+              mType <- getParam "_matchType"
+              sType <- getParam "_searchType"
+              iLimit <- getParam "_limit"
 
-               patFunction <- return $ case mType of
+              patFunction <- return $ case mType of
                                Just "p"  -> prefixMatch
                                Just "s"  -> substringMatch
                                _         -> prefixMatch
 
-               searchType  <- return $ case sType of
+              searchType  <- return $ case sType of
                                Just "and" -> intersectAll
                                Just "or"  -> unionAll
                                _          -> intersectAll
 
-               itemLimit   <- return $ case iLimit of
+              itemLimit   <- return $ case iLimit of
                                Just b -> let 
                                             s = BU.toString b
                                          in
                                            if (all isDigit s) then (read s)
                                            else defaultSearchLimit
                                _      -> defaultSearchLimit
+              termIds <- runRedisDB database $ redisSearch mname m [] patFunction
+              modifyResponse $ setContentType "application/json"
+              case (filter (not . null) termIds) of
+                [] -> writeLBS $ A.encode ([] :: [Value])
+                tids -> do
+                      -- Finally, list of matched instances
+                      instances <- mapM (\id -> fetchInstance id $
+                                                CRUD.instanceKey mname id)
+                                   (searchType tids)
+                      writeLBS $ A.encode (take itemLimit instances)
+              return ()
 
-               -- Try to get search results for every index field
-               termIds <- mapM (\i -> do
-                                  p <- getParam i
-                                  case p of
-                                    Nothing -> return Nothing
-                                    Just s -> do
-                                      ids <- getTermIds (patFunction mname i s)
-                                      return $ Just ids)
-                          (indices m)
-               modifyResponse $ setContentType "application/json"
-               case (catMaybes termIds) of
-                 [] -> writeLBS $ A.encode ([] :: [Value])
-                 tids -> do
-                       -- Finally, list of matched instances
-                       instances <- mapM (\id -> fetchInstance id $
-                                                 instanceKey mname id)
-                                    (searchType tids)
-                       writeLBS $ A.encode (take itemLimit instances)
-         return ()
+
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
