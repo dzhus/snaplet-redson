@@ -24,7 +24,6 @@ import Data.Functor
 import Data.Aeson as A
 
 import Data.Char (isDigit)
-import Numeric (readDec)
 
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB (ByteString, readFile)
@@ -37,8 +36,6 @@ import Data.Lens.Template
 
 import Data.List (foldl1', intersect, union)
 import qualified Data.Map as M
-
-import Data.Maybe
 
 import Snap.Core
 import Snap.Snaplet
