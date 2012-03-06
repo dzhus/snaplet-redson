@@ -405,8 +405,10 @@ search =
       ifTop $ withCheckSecurity $ \_ mdl -> do
         case mdl of
           Nothing -> handleError notFound
-          Just m -> do
-              mname <- getModelName
+          Just m -> 
+            let
+                mname = modelName m
+            in do
               -- TODO: Mark these field names as reserved
               mType <- getParam "_matchType"
               sType <- getParam "_searchType"
@@ -429,7 +431,7 @@ search =
                                            if (all isDigit s) then (read s)
                                            else defaultSearchLimit
                                _      -> defaultSearchLimit
-              termIds <- runRedisDB database $ redisSearch mname m [] patFunction
+              termIds <- runRedisDB database $ redisSearch m [] patFunction
               modifyResponse $ setContentType "application/json"
               case (filter (not . null) termIds) of
                 [] -> writeLBS $ A.encode ([] :: [Value])

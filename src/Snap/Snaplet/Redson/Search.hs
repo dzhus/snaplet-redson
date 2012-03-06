@@ -52,16 +52,16 @@ substringMatch model (field, value) =
 ------------------------------------------------------------------------------
 -- | Redis action which returns list of instance id's matching given
 -- search terms.
-redisSearch :: ModelName
-            -> Model
+redisSearch :: Model
             -- ^ Model instances of which are being searched
             -> [SearchTerm]
             -- ^ List of requested field values
             -> PatternFunction
             -- ^ How to build pattern for matching keys
             -> Redis [[InstanceId]]
-redisSearch mname model searchTerms patFunction =
+redisSearch model searchTerms patFunction =
     let
+        mname = modelName model
         -- Get list of ids which match single search term
         getTermIds pattern = do
           Right sets <- keys pattern
