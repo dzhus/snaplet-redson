@@ -9,12 +9,10 @@ module Snap.Snaplet.Redson.Metamodel
 where
 
 import Control.Applicative
-import Data.Functor
 import Data.List
 
 import Data.Aeson
 import qualified Data.ByteString as B
-import Data.ByteString.Lazy.UTF8
 
 import Data.Lens.Common
 import Data.Lens.Template
@@ -63,7 +61,8 @@ data Field = Field { name           :: FieldName
 
 
 -- | Model describes fields and permissions.
-data Model = Model { title          :: B.ByteString
+data Model = Model { modelName      :: ModelName
+                   , title          :: B.ByteString
                    , fields         :: [Field]
                    , _canCreateF    :: Permissions
                    , _canReadF      :: Permissions
@@ -84,20 +83,22 @@ defaultFieldType = "text"
 
 instance FromJSON Model where
     parseJSON (Object v) = do
-      fields <- parseJSON =<< (v .: "fields")
+      parsedFields <- parseJSON =<< (v .: "fields")
       return =<< Model                    <$>
+        v .: "name"                       <*>
         v .: "title"                      <*>
         v .: "fields"                     <*>
         v .:? "canCreate" .!= Nobody      <*>
         v .:? "canRead"   .!= Nobody      <*>
         v .:? "canUpdate" .!= Nobody      <*>
         v .:? "canDelete" .!= Nobody      <*>
-        (pure $ map name $ filter index fields)
+        (pure $ map name $ filter index parsedFields)
     parseJSON _          = error "Could not parse model description"
 
 instance ToJSON Model where
     toJSON mdl = object
-      [ "title"      .= title mdl
+      [ "name"       .= modelName mdl
+      , "title"      .= title mdl
       , "fields"     .= fields mdl
       , "indices"    .= indices mdl
       , "canCreate"  .= _canCreateF mdl
@@ -110,7 +111,7 @@ instance ToJSON Model where
 instance FromJSON Permissions where
     parseJSON (Bool True)  = return Everyone
     parseJSON (Bool False) = return Nobody
-    parseJSON v@(Array r)  = Roles <$> parseJSON v
+    parseJSON v@(Array _)  = Roles <$> parseJSON v
     parseJSON _            = error "Could not permissions"
 
 instance ToJSON Permissions where
@@ -219,7 +220,7 @@ getModelPermissions (Right user) model =
                              (model ^. perm)
                              (userRoles user)
         rawPerms = map fst $
-                   filter (\(m, p) -> askPermission p) methodMap
+                   filter (\(_, p) -> askPermission p) methodMap
     in
       if (elem POST rawPerms)
       then rawPerms ++ [PUT]

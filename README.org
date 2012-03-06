@@ -47,6 +47,9 @@
     fields marked by /slant/.
     
 **** Valid form keys
+***** name
+      Internal name of model. Must match the basename of JSON file
+      model definition is stored in.
 ***** title
       Human-readable form title.
 ***** /canCreate / canUpdate / canRead / canDelete/

@@ -76,6 +76,8 @@ makeLens ''Redson
 
 ------------------------------------------------------------------------------
 -- | Extract model name from request path parameter.
+--
+-- Note that this works for transparent mode even if model is unknown.
 getModelName:: MonadSnap m => m ModelName
 getModelName = fromParam "model"
 
