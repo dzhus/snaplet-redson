@@ -11,7 +11,7 @@ Can be used as Backbone.sync backend.
 -}
 
 module Snap.Snaplet.Redson 
-    (Redson
+    ( Redson
     , redsonInit)
 
 where
