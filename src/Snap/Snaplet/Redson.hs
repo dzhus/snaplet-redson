@@ -37,6 +37,8 @@ import Data.Lens.Template
 import Data.List (foldl1', intersect, union)
 import qualified Data.Map as M
 
+import Data.Maybe
+
 import Snap.Core
 import Snap.Snaplet
 import Snap.Snaplet.Auth
@@ -428,7 +430,18 @@ search =
                                            if (all isDigit s) then (read s)
                                            else defaultSearchLimit
                                _      -> defaultSearchLimit
-              termIds <- runRedisDB database $ redisSearch m [] patFunction
+
+              -- Produce Just SearchTerm
+              indexValues <- mapM (\i -> do
+                                     p <- getParam i
+                                     case p of
+                                       Nothing -> return Nothing
+                                       Just s -> return $ Just (i, s))
+                             (indices m)
+
+              termIds <- runRedisDB database $
+                         redisSearch m (catMaybes indexValues) patFunction
+
               modifyResponse $ setContentType "application/json"
               case (filter (not . null) termIds) of
                 [] -> writeLBS $ A.encode ([] :: [Value])

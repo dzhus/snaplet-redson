@@ -22,7 +22,6 @@ import Database.Redis
 
 import Snap.Snaplet.Redson.CRUD
 import Snap.Snaplet.Redson.Metamodel
-import Snap.Snaplet.Redson.Util
 
 
 ------------------------------------------------------------------------------
@@ -55,7 +54,7 @@ substringMatch model (field, value) =
 redisSearch :: Model
             -- ^ Model instances of which are being searched
             -> [SearchTerm]
-            -- ^ List of requested field values
+            -- ^ List of requested index field values
             -> PatternFunction
             -- ^ How to build pattern for matching keys
             -> Redis [[InstanceId]]
@@ -76,4 +75,4 @@ redisSearch model searchTerms patFunction =
      in
        -- Try to get search results for every index field
        mapM (\s -> getTermIds (patFunction mname s))
-                (filter (\(k, v) -> elem k $ indices model) searchTerms)
+            searchTerms
