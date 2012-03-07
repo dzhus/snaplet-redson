@@ -24,6 +24,7 @@ library
                         Snap.Snaplet.Redson.CRUD,
                         Snap.Snaplet.Redson.Metamodel,
                         Snap.Snaplet.Redson.Util
+  other-modules:        Snap.Snaplet.Redson.Search
 
   build-depends:        
     aeson               == 0.6.*,
