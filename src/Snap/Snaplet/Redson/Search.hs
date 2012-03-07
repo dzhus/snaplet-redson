@@ -66,10 +66,9 @@ redisSearch model searchTerms patFunction =
         getTermIds pattern = do
           Right sets <- keys pattern
           case sets of
+            -- Do not attempt sunion with no arguments.
             [] -> return []
             _ -> do
-              -- Hedis hangs when doing `suinion []`
-              --
               -- TODO Maybe use sunionstore and perform further
               -- operations on Redis as well.
               Right ids <- sunion sets
