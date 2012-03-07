@@ -52,6 +52,7 @@ data Field = Field { name           :: FieldName
                    , defaultVal     :: Maybe Value
                    , index          :: Bool
                    , required       :: Maybe Bool
+                   , dictionaryName :: Maybe B.ByteString
                    , invisible      :: Maybe Bool
                    , referencables  :: Maybe [ModelName]
                    , canRead        :: Permissions
@@ -129,6 +130,7 @@ instance FromJSON Field where
       v .:? "default"                   <*>
       v .:? "index"    .!= False        <*>
       v .:? "required"                  <*>
+      v .:? "dictionaryName"            <*>
       v .:? "invisible"                 <*>
       v .:? "referencables"             <*>
       v .:? "canRead"  .!= Nobody       <*>
@@ -144,6 +146,7 @@ instance ToJSON Field where
       , "default"       .= defaultVal f
       , "index"         .= index f
       , "required"      .= required f
+      , "dictionaryName".= dictionaryName f
       , "invisible"     .= invisible f
       , "canRead"       .= canRead f
       , "canWrite"      .= canWrite f

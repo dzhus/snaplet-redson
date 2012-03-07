@@ -93,21 +93,22 @@
       - "text",
       - "textarea",
       - "checkbox",
-      - "select",
+      - "dictionary",
       - "reference"
 
       Default field type is `text`
 
       Client uses type data to properly render field contents.
 
-      If type of field is `reference`, then field value is a reference
-      to another form. The client may provide interface to edit or
-      view the subform. The actual value provided for the form field
-      with `slot` tag should be `<formname>:<instanceid>` string,
-      where `<formname>` is the name of form to which the reference is
+      If type of field is `reference`, then field holds a number of
+      references to another form instances. The client may provide
+      interface to edit or view the subform. The actual value provided
+      for the form field with `reference` type should be
+      comma-separated list of `<formname>:<instanceid>` strings, where
+      `<formname>` is the name of form to which the reference is
       stored and `<instanceid>` is the id of specific instance of that
       form.
-      
+
 ***** /canRead / canWrite/
       Per-field permissions have the same syntax as per-field per-form
       permissions. Only readable fields are served to client and only
@@ -126,6 +127,12 @@
         and does not expect unreadable fields in server response.
         
 
+***** /dictionaryName/
+      When field type is `dictionary`, `dictionaryName` key must be
+      present in field description as well. Client should provide
+      certain mapping between stored field contents and displayed
+      value using the name of dictionary. No checks on server side are
+      performed.
 ***** IN_PROGRESS /referencables/
       `referencables` key must be present if field type is
       `reference`, and holds list of models referencable from this
@@ -393,8 +400,12 @@
    When instance of model becomes referenced by another instance,
    inverse reference should be updated by server.
 
+   We already have indices out of the box so we can get this feature
+   for free.
+
    Perhaps orphan dependent models should be cleared if parent is
    deleted.
+** SOMEDAY Factor out Snap.Snaplet.Redson.Util to snap-errors module
 ** TODO Force default values when creating instance
 ** TODO Configurable pool size
 
