@@ -118,6 +118,14 @@ deleteIndices mname id commit =
     mapM_ (\(i, v) -> srem (modelIndex mname i v) [id])
           commit
 
+------------------------------------------------------------------------------
+-- | Get old values of index fields stored under key.
+getOldIndices :: B.ByteString -> [FieldName] -> Redis [Maybe B.ByteString]
+getOldIndices key findices = do
+  reply <- hmget key findices
+  return $ case reply of
+             Left _ -> []
+             Right l -> l
 
 ------------------------------------------------------------------------------
 -- | Create new instance in Redis and indices for it.
@@ -157,7 +165,7 @@ update mname id commit findices =
       unpacked = M.toList commit
       newFields = map fst unpacked
   in do
-    Right old <- hmget key findices
+    old <- getOldIndices key findices
     hmset key unpacked
 
     deleteIndices mname id $ 
@@ -179,7 +187,7 @@ delete mname id findices =
     let
         key = instanceKey mname id
     in do
-      Right old <- hmget key findices
+      old <- getOldIndices key findices
       lrem (modelTimeline mname) 1 id >> del [key]
       deleteIndices mname id (zip findices (catMaybes old))
       return (Right ())
