@@ -51,7 +51,6 @@ data Permissions = Roles [Role]
 data Field = Field { name           :: FieldName
                    , fieldType      :: B.ByteString
                    , label          :: Maybe B.ByteString
-                   , choice         :: Maybe [FieldValue]
                    , defaultVal     :: Maybe Value
                    , index          :: Bool
                    , indexCollate   :: Bool
@@ -132,7 +131,6 @@ instance FromJSON Field where
       v .: "name"                       <*>
       v .:? "type" .!= defaultFieldType <*>
       v .:? "label"                     <*>
-      v .:? "choice"                    <*>
       v .:? "default"                   <*>
       v .:? "index"        .!= False    <*>
       v .:? "indexCollate" .!= False    <*>
@@ -149,7 +147,6 @@ instance ToJSON Field where
       [ "name"          .= name f
       , "type"          .= fieldType f
       , "label"         .= label f
-      , "choice"        .= choice f
       , "default"       .= defaultVal f
       , "index"         .= index f
       , "indexCollate"  .= indexCollate f

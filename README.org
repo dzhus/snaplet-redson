@@ -192,9 +192,9 @@
                },
                {
                    "name": "dangerClass",
-                   "type": "select",
-                   "default": "Euclid",
-                   "choice": ["Safe", "Euclid", "Keter"],
+                   "type": "dictionary",
+                   "dictionaryName": "DangerClasses",
+                   "default": "lev0",
                    "label": "Class",
                    "canRead": ["front"]
                    "canWrite": ["back"]
