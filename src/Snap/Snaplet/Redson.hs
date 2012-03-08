@@ -432,11 +432,12 @@ search =
                                _      -> defaultSearchLimit
 
               -- Produce Just SearchTerm
-              indexValues <- mapM (\i -> do
+              indexValues <- mapM (\(i, c) -> do
                                      p <- getParam i
                                      case p of
                                        Nothing -> return Nothing
-                                       Just s -> return $ Just (i, s))
+                                       Just s -> if c then return $ Just (i, CRUD.collate s)
+                                                 else return $ Just (i, s))
                              (indices m)
 
               termIds <- runRedisDB database $

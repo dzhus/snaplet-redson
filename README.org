@@ -148,6 +148,15 @@
 
       Redis key used is <modelname>:<field>:<value>, value stored is a
       set of instance ids with that value for indexed field.
+***** /indexCollate/
+      If field has index=true, then indexCollate instruct Redson
+      whether or not to perform string cleaning (removing punctuation,
+      space, converting to lower-case) prior to saving index values
+      and performing an ad-hoc search against them. Defaults to false.
+      Set this to true if you want to search by names or other
+      user-provided strings.
+
+      This flag may be removed in the upcoming releases.
 ***** /requried/
       Boolean field to indicate that field is required. Client may
       provide custom checks in UI for such fields. Unused on server

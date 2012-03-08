@@ -31,6 +31,9 @@ type FieldName = B.ByteString
 -- | Field value.
 type FieldValue = B.ByteString
 
+-- | Name of indexed field and collation flag.
+type FieldIndex = (FieldName, Bool)
+
 -- | List of field key-value pairs.
 --
 -- Suitable for using with 'Database.Redis.hmset'.
@@ -51,6 +54,7 @@ data Field = Field { name           :: FieldName
                    , choice         :: Maybe [FieldValue]
                    , defaultVal     :: Maybe Value
                    , index          :: Bool
+                   , indexCollate   :: Bool
                    , required       :: Maybe Bool
                    , dictionaryName :: Maybe B.ByteString
                    , invisible      :: Maybe Bool
@@ -69,7 +73,7 @@ data Model = Model { modelName      :: ModelName
                    , _canReadF      :: Permissions
                    , _canUpdateF    :: Permissions
                    , _canDeleteF    :: Permissions
-                   , indices        :: [FieldName]
+                   , indices        :: [FieldIndex]
                    -- ^ Cached list of index fields.
                    }
                  deriving Show
@@ -93,7 +97,9 @@ instance FromJSON Model where
         v .:? "canRead"   .!= Nobody      <*>
         v .:? "canUpdate" .!= Nobody      <*>
         v .:? "canDelete" .!= Nobody      <*>
-        (pure $ map name $ filter index parsedFields)
+        (pure $ 
+         map (\f ->  (name f, indexCollate f)) $
+         filter index parsedFields)
     parseJSON _          = error "Could not parse model description"
 
 instance ToJSON Model where
@@ -128,7 +134,8 @@ instance FromJSON Field where
       v .:? "label"                     <*>
       v .:? "choice"                    <*>
       v .:? "default"                   <*>
-      v .:? "index"    .!= False        <*>
+      v .:? "index"        .!= False    <*>
+      v .:? "indexCollate" .!= False    <*>
       v .:? "required"                  <*>
       v .:? "dictionaryName"            <*>
       v .:? "invisible"                 <*>
@@ -145,6 +152,7 @@ instance ToJSON Field where
       , "choice"        .= choice f
       , "default"       .= defaultVal f
       , "index"         .= index f
+      , "indexCollate"  .= indexCollate f
       , "required"      .= required f
       , "dictionaryName".= dictionaryName f
       , "invisible"     .= invisible f
