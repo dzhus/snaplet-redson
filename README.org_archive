@@ -30,3 +30,21 @@ Archived entries from file /home/sphinx/projects/snaplet-redson/README.org
   - [X] Per-field permissions (r/w) for different user groups
     (roles);
   - [X]  c/r/u/d permissions on models for roles.
+
+* DONE Routing bug
+  CLOSED: [2012-03-11 Вск 15:31]
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2012-03-11 Вск 15:31
+  :ARCHIVE_FILE: ~/projects/snaplet-redson/README.org
+  :ARCHIVE_OLPATH: To do
+  :ARCHIVE_CATEGORY: README
+  :ARCHIVE_TODO: DONE
+  :END:
+  Snap fails to properly route requests to `/foo/bar/` if it's
+  shadowed by `/foo/bar/:baz/` route even if `:baz` variable capture
+  fails: https://github.com/snapframework/snap-core/issues/120
+
+  Currently we have to use a workaround to correctly direct
+  `/_/<formname>/` requests to emptyPage handler by checking `id`
+  parameter value in read handler.
+  

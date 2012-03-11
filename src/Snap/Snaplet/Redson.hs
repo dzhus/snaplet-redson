@@ -234,11 +234,6 @@ post = ifTop $ do
 -- | Read instance from Redis.
 read' :: Handler b (Redson b) ()
 read' = ifTop $ do
-  -- Pass to index page handler (Snap routing bug workaround)
-  id <- fromParam "id"
-  when (B.null id)
-       pass
-
   withCheckSecurity $ \au mdl -> do
     key <- getInstanceKey
     r <- runRedisDB database $ do
@@ -256,7 +251,8 @@ read' = ifTop $ do
 ------------------------------------------------------------------------------
 -- | Handle PUT request for existing instance in Redis.
 --
--- *TODO* Report 201 if could create new instance.
+-- TODO Report 201 if could create new instance.
+-- (http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.6)
 put :: Handler b (Redson b) ()
 put = ifTop $ do
   withCheckSecurity $ \au mdl -> do

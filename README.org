@@ -396,15 +396,6 @@
    We should support serving of results as a table (array of arrays)
    to avoid redundant field names served with every matched instance.
    Client should be able to set fields to be served in output.
-** BLOCKED Routing bug
-   Snap fails to properly route requests to `/foo/bar/` if it's
-   shadowed by `/foo/bar/:baz/` route even if `:baz` variable capture
-   fails: https://github.com/snapframework/snap-core/issues/120
-
-   Currently we have to use a workaround to correctly direct
-   `/_/<formname>/` requests to emptyPage handler by checking `id`
-   parameter value in read handler.
-   
 ** MAYBE Update inverse references
    When instance of model becomes referenced by another instance,
    inverse reference should be updated by server.
