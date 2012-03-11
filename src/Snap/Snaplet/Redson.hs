@@ -52,8 +52,9 @@ import Database.Redis hiding (auth)
 
 import System.EasyFile
 
-import qualified Snap.Snaplet.Redson.CRUD as CRUD
-import Snap.Snaplet.Redson.Metamodel
+import qualified Snap.Snaplet.Redson.Snapless.CRUD as CRUD
+import Snap.Snaplet.Redson.Snapless.Metamodel
+import Snap.Snaplet.Redson.Permissions
 import Snap.Snaplet.Redson.Search
 import Snap.Snaplet.Redson.Util
 
@@ -266,11 +267,9 @@ put = ifTop $ do
 
         id <- getModelId
         mname <- getModelName        
-        resp <- runRedisDB database $ 
+        Right _ <- runRedisDB database $ 
            CRUD.update mname id j (maybe [] indices mdl)
-        case resp of
-          Left err -> handleError err
-          Right _ -> modifyResponse $ setResponseCode 204
+        modifyResponse $ setResponseCode 204
         return ()
 
 

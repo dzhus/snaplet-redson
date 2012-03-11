@@ -21,10 +21,11 @@ library
   hs-source-dirs: src
 
   exposed-modules:      Snap.Snaplet.Redson,
-                        Snap.Snaplet.Redson.CRUD,
-                        Snap.Snaplet.Redson.Metamodel,
+                        Snap.Snaplet.Redson.Snapless.CRUD,
+                        Snap.Snaplet.Redson.Snapless.Metamodel,
                         Snap.Snaplet.Redson.Util
-  other-modules:        Snap.Snaplet.Redson.Search
+  other-modules:        Snap.Snaplet.Redson.Permissions,
+                        Snap.Snaplet.Redson.Search
 
   build-depends:        
     aeson               == 0.6.*,

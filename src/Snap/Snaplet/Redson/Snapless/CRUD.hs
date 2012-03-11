@@ -9,7 +9,7 @@ Snap-agnostic low-level CRUD operations.
 This module may be used for batch uploading of database data.
 
 -}
-module Snap.Snaplet.Redson.CRUD
+module Snap.Snaplet.Redson.Snapless.CRUD
     ( -- * CRUD operations
       create
     , update
@@ -39,8 +39,7 @@ import qualified Data.Map as M
 
 import Database.Redis
 
-import Snap.Snaplet.Redson.Metamodel
-import Snap.Snaplet.Redson.Util
+import Snap.Snaplet.Redson.Snapless.Metamodel
 
 
 type InstanceId = B.ByteString
@@ -153,7 +152,7 @@ getOldIndices key findices = do
 create :: ModelName           -- ^ Model name
        -> Commit              -- ^ Key-values of instance data
        -> [FieldIndex]
-       -> Redis (Either Error InstanceId)
+       -> Redis (Either Reply InstanceId)
 create mname commit findices = do
   -- Take id from global:model:id
   Right n <- incr $ modelIdKey mname
@@ -175,7 +174,7 @@ update :: ModelName
        -> InstanceId
        -> Commit
        -> [FieldIndex]
-       -> Redis (Either Error ())
+       -> Redis (Either Reply ())
 update mname id commit findices =
   let
       key = instanceKey mname id
@@ -200,7 +199,7 @@ update mname id commit findices =
 delete :: ModelName
        -> InstanceId
        -> [FieldIndex]
-       -> Redis (Either Error ())
+       -> Redis (Either Reply ())
 delete mname id findices =
     let
         key = instanceKey mname id

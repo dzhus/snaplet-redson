@@ -384,7 +384,7 @@
     retrieve any JSON data. Any model may be written to.
 * To do
 ** TODO [#A] Cache user permissions
-   Snap.Snaplet.Redson.Metamodel coupled with withCheckSecurity
+   Snap.Snaplet.Redson.Snapless.Metamodel coupled with withCheckSecurity
    provides permissions checking upon every CRUD operation.
    Intersecting user roles and role lists set in form/field
    permissions should be performed once when first request from that
@@ -406,7 +406,7 @@
    Perhaps orphan dependent models should be cleared if parent is
    deleted.
 ** SOMEDAY Factor out Snap.Snaplet.Redson.Util to snap-errors module
-** TODO Force default values when creating instance
+** MAYBE Force default values when creating instance
 ** TODO Configurable pool size
 
 ** TODO WebSockets interface improvement
@@ -415,5 +415,5 @@
    - [ ] publish events only for respective model under
      `<model>/events` entry point (requires addressing extension for
      PubSub or multiple PubSubs)
-   - [ ] possible use native Redis' publish/subscribe mechanism
+   - [ ] possibly use native Redis' publish/subscribe mechanism
      
