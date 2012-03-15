@@ -69,9 +69,16 @@ data Model = Model { modelName      :: ModelName
                    , indices        :: [FieldIndex]
                    -- ^ Cached list of index fields.
                    }
-                 deriving Show
+             deriving Show
 
 makeLenses [''Model]
+
+
+-- | Group contains several fields which may be included in models.
+data Group = Group { groupName   :: B.ByteString
+                   , groupFields :: [Field]
+                   }
+             deriving Show
 
 
 -- | Used when field type is not specified in model description.
@@ -152,3 +159,16 @@ instance ToJSON Field where
       , "referencables" .= referencables f
       ]
 
+type Groups = M.Map B.ByteString [Field]
+
+-- | Replace all model fields having `group` type with actual group
+-- fields.
+spliceGroups :: Groups -> Model -> Model
+spliceGroups groups model =
+    let
+        origFields = fields model
+    in
+      model{fields = concat $
+            map (\f -> case (M.lookup (name f) groups) of
+                         Just grp -> grp
+                         Nothing -> [f]) $ origFields}

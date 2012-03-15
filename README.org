@@ -110,9 +110,10 @@
       stored and `<instanceid>` is the id of specific instance of that
       form.
 
-      If type of field is `group`, then field entry actually
-      describes a named group of fields, contents of which must be
-      given in group fields file (see below).
+      If type of field is `group`, then field entry actually describes
+      a named group of fields, contents of which must be given in
+      group fields file (see below). No field parameters other than
+      `name`, `type` and `groupName` are required for such fields.
 
 ***** /canRead / canWrite/
       Per-field permissions have the same syntax as per-field per-form
@@ -237,36 +238,32 @@
      A group of fields (complex field) with distinctive name may be
      shared across several models. Valid complex fields must be
      defined in a file set by `field-groups-file` setting
-     ("resources/field-groups.json"), which must contain a list of
-     JSON objects with keys `groupName` (which sets the name of
-     group`) and `fields`, which is a list of field objects using the
-     same syntax as model description. There's no way to set
-     permissions for complex fields currently.
+     ("resources/field-groups.json"), which must contain a JSON hash
+     where keys are group names and values are fields in respective
+     group. There's no way to set permissions for complex fields
+     currently.
 
      #+BEGIN_SRC javascript
-       [
-           {
-               "groupName": "address",
-               "fields": [
-                   {
-                       "name": "city",
-                       "label": "City"
-                   },
-                   {
-                       "name": "zip",
-                       "label": "ZIP / Postal code"
-                   },
-                   {
-                       "name": "address",
-                       "label": "Address",
-                       "type": "textarea"
-                   }
-               ]
-           }
-       ]
+       {
+           "address": [
+               {
+                   "name": "city",
+                   "label": "City"
+               },
+               {
+                   "name": "zip",
+                   "label": "ZIP / Postal code"
+               },
+               {
+                   "name": "address",
+                   "label": "Address",
+                   "type": "textarea"
+               }
+           ]
+       }
      #+END_SRC
 
-     Using `complex` field type in group field description is not
+     Using `group` field type in group field description is not
      allowed (no recursive complex fields).
      
 *** Permissions

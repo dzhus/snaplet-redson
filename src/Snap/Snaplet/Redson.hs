@@ -471,26 +471,31 @@ pathToModelName :: FilePath -> ModelName
 pathToModelName filepath = BU.fromString $ takeBaseName filepath
 
 
--- | Read all models from directory to a map.
+-- | Read all models from directory to a map, splicing group fields.
 --
 -- TODO: Perhaps rely on special directory file which explicitly lists
 -- all models.
-loadModels :: FilePath -> IO (M.Map ModelName Model)
-loadModels directory =
+loadModels :: FilePath -- ^ Models directory
+           -> FilePath -- ^ Group definitions file
+           -> IO (M.Map ModelName Model)
+loadModels directory groupsFile =
     let
-        parseModel :: FilePath -> IO Model
-        parseModel filename = do
+        parseFile :: FromJSON a => FilePath -> IO a
+        parseFile filename = do
               j <- LB.readFile filename
               case (A.decode j) of
-                Just model -> return model
+                Just obj -> return obj
                 Nothing -> error $ "Could not parse " ++ filename
     in
       do
         dirEntries <- getDirectoryContents directory
         -- Leave out non-files
-        files <- filterM doesFileExist (map (\f -> directory ++ "/" ++ f) dirEntries)
-        mdls <- mapM parseModel files
-        return $ M.fromList $ zip (map pathToModelName files) mdls
+        mdlFiles <- filterM doesFileExist
+                 (map (\f -> directory ++ "/" ++ f) dirEntries)
+        groups <- parseFile groupsFile
+        mdls <- mapM parseFile mdlFiles
+        return $ M.fromList $ zip (map pathToModelName mdlFiles)
+                                  (map (spliceGroups groups) mdls)
 
 
 ------------------------------------------------------------------------------
@@ -514,6 +519,10 @@ redsonInit topAuth = makeSnaplet
                       lookupDefault False
                                     cfg "transparent-mode"
 
-            mdls <- liftIO $ loadModels mdlDir
+            grpDef <- liftIO $
+                      lookupDefault "resources/field-groups.json"
+                                    cfg "field-groups-file"
+
+            mdls <- liftIO $ loadModels mdlDir grpDef
             addRoutes routes
             return $ Redson r topAuth p mdls transp
