@@ -419,7 +419,7 @@ search =
                                _          -> intersectAll
 
               itemLimit   <- return $ case iLimit of
-                               Just b -> let 
+                               Just b -> let
                                             s = BU.toString b
                                          in
                                            if (all isDigit s) then (read s)
@@ -431,8 +431,10 @@ search =
                                      p <- getParam i
                                      case p of
                                        Nothing -> return Nothing
-                                       Just s -> if c then return $ Just (i, CRUD.collate s)
-                                                 else return $ Just (i, s))
+                                       Just s -> if c then return $
+                                                  Just (i, CRUD.collate s)
+                                                 else return $
+                                                  Just (i, s))
                              (indices m)
 
               termIds <- runRedisDB database $
@@ -494,8 +496,10 @@ loadModels directory groupsFile =
                  (map (\f -> directory ++ "/" ++ f) dirEntries)
         groups <- parseFile groupsFile
         mdls <- mapM parseFile mdlFiles
-        return $ M.fromList $ zip (map pathToModelName mdlFiles)
-                                  (map (spliceGroups groups) mdls)
+        -- Splice groups & cache indices for served models
+        return $ M.fromList $
+               zip (map pathToModelName mdlFiles)
+                   (map (cacheIndices . spliceGroups groups) mdls)
 
 
 ------------------------------------------------------------------------------

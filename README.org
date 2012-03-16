@@ -296,7 +296,9 @@
     list of index fields of model.
 
     Every field with type `group` is spliced into list of actual group
-    members in served model.
+    members in served model, and `groupName` property is attached to
+    every field in splice result. Client may use this data to
+    recognize fields from the same group and render them specifically.
 
     Client may also request list of readable models from
 
