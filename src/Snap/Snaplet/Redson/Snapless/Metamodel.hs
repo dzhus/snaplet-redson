@@ -14,6 +14,7 @@ import Data.Aeson
 import qualified Data.ByteString as B
 
 import Data.Lens.Template
+import Data.List
 
 import qualified Data.Map as M
 
@@ -50,6 +51,7 @@ data Field = Field { name           :: FieldName
                    , indexCollate   :: Bool
                    , required       :: Maybe Bool
                    , dictionaryName :: Maybe B.ByteString
+                   , groupName      :: Maybe B.ByteString
                    , invisible      :: Maybe Bool
                    , referencables  :: Maybe [ModelName]
                    , canRead        :: Permissions
@@ -59,6 +61,10 @@ data Field = Field { name           :: FieldName
 
 
 -- | Model describes fields and permissions.
+--
+-- Models are built from JSON definitions (using FromJSON instance for
+-- Model) with further group splicing ('spliceGroups') and index
+-- caching ('cacheIndices').
 data Model = Model { modelName      :: ModelName
                    , title          :: B.ByteString
                    , fields         :: [Field]
@@ -73,23 +79,13 @@ data Model = Model { modelName      :: ModelName
 
 makeLenses [''Model]
 
-
--- | Group contains several fields which may be included in models.
-data Group = Group { groupName   :: B.ByteString
-                   , groupFields :: [Field]
-                   }
-             deriving Show
-
-
 -- | Used when field type is not specified in model description.
 defaultFieldType :: B.ByteString
 defaultFieldType = "text"
 
 
 instance FromJSON Model where
-    parseJSON (Object v) = do
-      parsedFields <- parseJSON =<< (v .: "fields")
-      return =<< Model                    <$>
+    parseJSON (Object v) = Model          <$>
         v .: "name"                       <*>
         v .: "title"                      <*>
         v .: "fields"                     <*>
@@ -97,9 +93,7 @@ instance FromJSON Model where
         v .:? "canRead"   .!= Nobody      <*>
         v .:? "canUpdate" .!= Nobody      <*>
         v .:? "canDelete" .!= Nobody      <*>
-        (pure $ 
-         map (\f ->  (name f, indexCollate f)) $
-         filter index parsedFields)
+        pure []
     parseJSON _          = error "Could not parse model description"
 
 instance ToJSON Model where
@@ -137,6 +131,7 @@ instance FromJSON Field where
       v .:? "indexCollate" .!= False    <*>
       v .:? "required"                  <*>
       v .:? "dictionaryName"            <*>
+      v .:? "groupName"                 <*>
       v .:? "invisible"                 <*>
       v .:? "referencables"             <*>
       v .:? "canRead"  .!= Nobody       <*>
@@ -153,11 +148,13 @@ instance ToJSON Field where
       , "indexCollate"  .= indexCollate f
       , "required"      .= required f
       , "dictionaryName".= dictionaryName f
+      , "groupName"     .= groupName f
       , "invisible"     .= invisible f
       , "canRead"       .= canRead f
       , "canWrite"      .= canWrite f
       , "referencables" .= referencables f
       ]
+
 
 type Groups = M.Map B.ByteString [Field]
 
@@ -169,6 +166,23 @@ spliceGroups groups model =
         origFields = fields model
     in
       model{fields = concat $
-            map (\f -> case (M.lookup (name f) groups) of
-                         Just grp -> grp
-                         Nothing -> [f]) $ origFields}
+            map (\f -> 
+                 case (groupName f, fieldType f) of
+                   (Just n, "group") -> 
+                       case (M.lookup n groups) of
+                         Just grp -> 
+                             map (\gf -> gf{groupName = Just n}) grp
+                         Nothing -> [f]
+                   _ -> [f]
+                ) origFields}
+
+
+-- | Set indices field of model to list of 'FieldIndex'es
+cacheIndices :: Model -> Model
+cacheIndices model = 
+    model{indices = foldl' 
+                    (\l f -> case (index f, indexCollate f) of
+                               (True, c) -> (name f, c):l
+                               _ -> l
+                    ) 
+          [] (fields model)}
