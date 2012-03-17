@@ -36,7 +36,7 @@ library
     data-lens           >= 2.0.1 && < 2.1,
     data-lens-template  == 2.1.*,
     easy-file           == 0.1.*,
-    hedis               == 0.3.*,
+    hedis               == 0.4.*,
     mtl                 == 2.*,
     snap                == 0.8.*,
     snap-core           == 0.8.*,
