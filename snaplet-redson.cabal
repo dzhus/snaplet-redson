@@ -36,12 +36,12 @@ library
     data-lens           >= 2.0.1 && < 2.1,
     data-lens-template  == 2.1.*,
     easy-file           == 0.1.*,
-    hedis               == 0.3.*,
+    hedis               == 0.4.*,
     mtl                 == 2.*,
-    snap                >= 0.7.1 && < 0.8,
-    snap-core           == 0.7.*,
+    snap                == 0.8.*,
+    snap-core           == 0.8.*,
     snaplet-redis       == 0.1.*,
     text                == 0.11.*,
     utf8-string         == 0.3.*,
-    websockets          == 0.5.*,
-    websockets-snap     == 0.5.*
+    websockets          == 0.6.*,
+    websockets-snap     == 0.6.*
