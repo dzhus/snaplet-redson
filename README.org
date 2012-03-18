@@ -94,7 +94,8 @@
       - "textarea",
       - "checkbox",
       - "dictionary",
-      - "reference"
+      - "reference",
+      - "group"
 
       Default field type is `text`
 
@@ -108,6 +109,11 @@
       `<formname>` is the name of form to which the reference is
       stored and `<instanceid>` is the id of specific instance of that
       form.
+
+      If type of field is `group`, then field entry actually describes
+      a named group of fields, contents of which must be given in
+      group fields file (see below). No field parameters other than
+      `name`, `type` and `groupName` are required for such fields.
 
 ***** /canRead / canWrite/
       Per-field permissions have the same syntax as per-field per-form
@@ -126,7 +132,13 @@
       - Client does not attempt to write inaccessible fields to server
         and does not expect unreadable fields in server response.
         
+        
 
+***** /groupName/
+      `groupName` key must be present if field type is `group`,
+      and must be equal to name of one of the complex field groups as
+      described in group fields file (see below). Client must render
+      `group` field as a group of fields.
 ***** /dictionaryName/
       When field type is `dictionary`, `dictionaryName` key must be
       present in field description as well. Client should provide
@@ -222,6 +234,38 @@
      to access forms built from this model.
 
 
+**** Group fields
+     A group of fields (complex field) with distinctive name may be
+     shared across several models. Valid complex fields must be
+     defined in a file set by `field-groups-file` setting
+     ("resources/field-groups.json"), which must contain a JSON hash
+     where keys are group names and values are fields in respective
+     group. There's no way to set permissions for complex fields
+     currently.
+
+     #+BEGIN_SRC javascript
+       {
+           "address": [
+               {
+                   "name": "city",
+                   "label": "City"
+               },
+               {
+                   "name": "zip",
+                   "label": "ZIP / Postal code"
+               },
+               {
+                   "name": "address",
+                   "label": "Address",
+                   "type": "textarea"
+               }
+           ]
+       }
+     #+END_SRC
+
+     Using `group` field type in group field description is not
+     allowed (no recursive complex fields).
+     
 *** Permissions
 
     Per-field permissions (set in canRead and canWrite field
@@ -237,22 +281,28 @@
     - Attempt to create or update instances with unwritable fields
       will be rejected with 403 Forbidden.
 
-   Client may request stripped form description by sending this
-   request:
+*** Served models
+    Client may request stripped form description by sending this
+    request:
    
-   : GET /<formid>/model/
+    : GET /<formid>/model/
 
-   Response will contain original description but without fields
-   unreadable by current user. canEdit field property will be set to
-   boolean value for every form field, indicating whether the current
-   user can write to this field. Whole-form permissions will be set to
-   booleans as well, indicating whether the current user has specific
-   permissions. Served form will also contain `indices` field which is a
-   list of index fields of model.
+    Response will contain original description but without fields
+    unreadable by current user. canEdit field property will be set to
+    boolean value for every form field, indicating whether the current
+    user can write to this field. Whole-form permissions will be set to
+    booleans as well, indicating whether the current user has specific
+    permissions. Served form will also contain `indices` field which is a
+    list of index fields of model.
 
-   Client may also request list of readable models from
+    Every field with type `group` is spliced into list of actual group
+    members in served model, and `groupName` property is attached to
+    every field in splice result. Client may use this data to
+    recognize fields from the same group and render them specifically.
 
-   : GET /_models/
+    Client may also request list of readable models from
+
+    : GET /_models/
     
 *** Server interface by example
     
@@ -378,6 +428,9 @@
 
   - models-directory ("resources/models"): directory which contains
     model definitions to be read by Redson.
+
+  - field-groups-file ("resources/field-groups.json"): file which
+    contains descriptions of usable complex field groups.
     
   - transparent-mode (false): when true, no permissions checking is
     performed. Redson acts in «transparent mode» allowing to store and
