@@ -152,7 +152,7 @@ instance ToJSON Field where
       , "dictionaryName".= dictionaryName f
       , "groupName"     .= groupName f
       , "invisible"     .= invisible f
-      , "readonly"      .= invisible f
+      , "readonly"      .= readonly f
       , "canRead"       .= canRead f
       , "canWrite"      .= canWrite f
       , "referencables" .= referencables f
