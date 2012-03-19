@@ -53,6 +53,7 @@ data Field = Field { name           :: FieldName
                    , dictionaryName :: Maybe B.ByteString
                    , groupName      :: Maybe B.ByteString
                    , invisible      :: Maybe Bool
+                   , readonly       :: Maybe Bool
                    , referencables  :: Maybe [ModelName]
                    , canRead        :: Permissions
                    , canWrite       :: Permissions
@@ -133,6 +134,7 @@ instance FromJSON Field where
       v .:? "dictionaryName"            <*>
       v .:? "groupName"                 <*>
       v .:? "invisible"                 <*>
+      v .:? "readonly"                  <*>
       v .:? "referencables"             <*>
       v .:? "canRead"  .!= Nobody       <*>
       v .:? "canWrite" .!= Nobody
@@ -150,6 +152,7 @@ instance ToJSON Field where
       , "dictionaryName".= dictionaryName f
       , "groupName"     .= groupName f
       , "invisible"     .= invisible f
+      , "readonly"      .= invisible f
       , "canRead"       .= canRead f
       , "canWrite"      .= canWrite f
       , "referencables" .= referencables f

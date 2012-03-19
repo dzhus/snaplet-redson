@@ -173,6 +173,10 @@
       Boolean field to indicate that field is required. Client may
       provide custom checks in UI for such fields. Unused on server
       yet.
+***** /readonly/
+      Boolean field to indicate that client must render field as
+      disabled. This flag does *not* actually affect how server treats
+      access to the field.
 ***** /invisible/
       Boolean field to indicate that field should not be rendered on
       UI (or not handled by client at all).
@@ -458,6 +462,11 @@
 
    Perhaps orphan dependent models should be cleared if parent is
    deleted.
+** TODO Allow any meta flags for fields
+   Field options which are not used by the server should be stored in
+   separate group and served back to client transparently. This way
+   we'll be able to modify models and client without fiddling with
+   Metamodel.hs.
 ** SOMEDAY Factor out Snap.Snaplet.Redson.Util to snap-errors module
 ** MAYBE Force default values when creating instance
 ** TODO Configurable pool size
