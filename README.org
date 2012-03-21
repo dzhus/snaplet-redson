@@ -76,15 +76,12 @@
       
 **** Valid field keys
 ***** name
+
       Field object must include `name` key which is the internal name of
       the field.
 
       `class` cannot be used as a field name.
-***** /default/
-      Specifies the default value of field. Must somehow match the
-      field type, currently processed on client side only (so any
-      JavaScript value is valid).
-      
+
 ***** /type/
       
       Type system currently matches HTML input element types, with
@@ -133,27 +130,11 @@
         and does not expect unreadable fields in server response.
         
         
-
 ***** /groupName/
       `groupName` key must be present if field type is `group`,
       and must be equal to name of one of the complex field groups as
       described in group fields file (see below). Client must render
       `group` field as a group of fields.
-***** /dictionaryName/
-      When field type is `dictionary`, `dictionaryName` key must be
-      present in field description as well. Client should provide
-      certain mapping between stored field contents and displayed
-      value using the name of dictionary. No checks on server side are
-      performed.
-***** IN_PROGRESS /referencables/
-      `referencables` key must be present if field type is
-      `reference`, and holds list of models referencable from this
-      field. Client may use this field to provide chooser interface to
-      pick a specific model to store reference to. Empty list is the
-      same as null.
-
-      The server does not check if actual field value matches any of
-      referencable models.
 ***** /index/
       Boolean which instructs server to create or update exact reverse
       index on that field on create/update/delete operations.
@@ -169,17 +150,42 @@
       user-provided strings.
 
       This flag may be removed in the upcoming releases.
-***** /requried/
-      Boolean field to indicate that field is required. Client may
-      provide custom checks in UI for such fields. Unused on server
-      yet.
-***** /readonly/
-      Boolean field to indicate that client must render field as
-      disabled. This flag does *not* actually affect how server treats
-      access to the field.
-***** /invisible/
-      Boolean field to indicate that field should not be rendered on
-      UI (or not handled by client at all).
+***** /meta/
+      A hash of arbitary keys and values which are *not* treated by
+      server in any way. These may be used by a client for
+      field-specific behaviour or templating.
+      
+****** Suggested meta annotations
+******* default
+        Specifies the default value of field. (Will possibly move out
+        of meta if server will enforce default values upon creation
+        some day).
+
+******* dictionaryName
+        When field type is `dictionary`, `dictionaryName` key must be
+        present in field description as well. Client should provide
+        certain mapping between stored field contents and displayed
+        value using the name of dictionary.
+
+******* invisible
+        Boolean field to indicate that field should not be rendered on
+        UI (or not handled by client at all).
+******* label
+        Human-readable field label.
+******* readonly
+        Boolean field to indicate that client must render field as
+        disabled.
+******* requried
+        Boolean field to indicate that field is required. Client may
+        provide custom checks in UI for such fields. (Will possibly
+        move out of meta)
+
+******* IN_PROGRESS referencables
+        `referencables` key must be present if field type is
+        `reference`, and holds list of models referencable from this
+        field. Client may use this field to provide chooser interface to
+        pick a specific model to store reference to. Empty list is the
+        same as null.
 **** Sample form definition
      (As described in [[http://scp-wiki.wikidot.com/][The SCP Foundation]] archives)
      
@@ -193,38 +199,50 @@
            "fields": [
                {
                    "name": "code",
-                   "label": "Code",
+                   "meta": {
+                       "label": "Code"
+                   },
                    "canWrite": ["front", "back"]
                },
                {
                    "name": "title",
-                   "label": "Title",
+                   "meta": {
+                       "label": "Title"
+                   },
                    "canWrite": ["front", "back"]
                },
                {
                    "name": "foundAt",
-                   "label": "Original location",
+                   "meta": {
+                       "label": "Original location"
+                   },
                    "canWrite": ["front", "back"]
                },
                {
                    "name": "dangerClass",
+                   "meta": {
+                       "label": "Danger class",
+                       "dictionaryName": "DangerClasses",
+                       "default": "lev0"
+                   },
                    "type": "dictionary",
-                   "dictionaryName": "DangerClasses",
-                   "default": "lev0",
-                   "label": "Class",
                    "canRead": ["front"]
                    "canWrite": ["back"]
                },
                {
                    "name": "conditions",
+                   "meta": {
+                       "label": "Special Containment Procedures"
+                   },
                    "type": "textarea",
-                   "label": "Special Containment Procedures",
                    "canWrite": ["back"]
                },
                {
                    "name": "description",
                    "type": "textarea",
-                   "label": "Description",
+                   "meta": {
+                       "label": "Description"
+                   },
                    "canWrite": ["back"]
                }
            ]
@@ -298,6 +316,8 @@
     booleans as well, indicating whether the current user has specific
     permissions. Served form will also contain `indices` field which is a
     list of index fields of model.
+
+    `meta` for every field as served as-is without any changes.
 
     Every field with type `group` is spliced into list of actual group
     members in served model, and `groupName` property is attached to

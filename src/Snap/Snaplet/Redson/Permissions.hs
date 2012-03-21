@@ -21,7 +21,7 @@ import qualified Data.Map as M
 import Snap.Core (Method(..))
 import Snap.Snaplet.Auth
 
-import Snap.Snaplet.Redson.Snapless.Metamodel hiding (required)
+import Snap.Snaplet.Redson.Snapless.Metamodel
 
 -- | User who has all permissions (used in security-disabled mode).
 data SuperUser = SuperUser

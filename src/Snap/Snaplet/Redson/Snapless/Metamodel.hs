@@ -41,20 +41,17 @@ data Permissions = Roles [B.ByteString]
                  | Nobody
                  deriving Show
 
+-- | Map of field annotations which are transparently handled by
+-- server without any logic.
+type FieldMeta = M.Map FieldName Value
 
 -- | Form field object.
 data Field = Field { name           :: FieldName
                    , fieldType      :: B.ByteString
-                   , label          :: Maybe B.ByteString
-                   , defaultVal     :: Maybe Value
                    , index          :: Bool
                    , indexCollate   :: Bool
-                   , required       :: Maybe Bool
-                   , dictionaryName :: Maybe B.ByteString
                    , groupName      :: Maybe B.ByteString
-                   , invisible      :: Maybe Bool
-                   , readonly       :: Maybe Bool
-                   , referencables  :: Maybe [ModelName]
+                   , meta           :: Maybe FieldMeta
                    , canRead        :: Permissions
                    , canWrite       :: Permissions
                    }
@@ -126,16 +123,10 @@ instance FromJSON Field where
     parseJSON (Object v) = Field        <$>
       v .: "name"                       <*>
       v .:? "type" .!= defaultFieldType <*>
-      v .:? "label"                     <*>
-      v .:? "default"                   <*>
       v .:? "index"        .!= False    <*>
       v .:? "indexCollate" .!= False    <*>
-      v .:? "required"                  <*>
-      v .:? "dictionaryName"            <*>
       v .:? "groupName"                 <*>
-      v .:? "invisible"                 <*>
-      v .:? "readonly"                  <*>
-      v .:? "referencables"             <*>
+      v .:? "meta"                      <*>
       v .:? "canRead"  .!= Nobody       <*>
       v .:? "canWrite" .!= Nobody
     parseJSON _          = error "Could not parse field properties"
@@ -144,18 +135,12 @@ instance ToJSON Field where
     toJSON f = object
       [ "name"          .= name f
       , "type"          .= fieldType f
-      , "label"         .= label f
-      , "default"       .= defaultVal f
       , "index"         .= index f
       , "indexCollate"  .= indexCollate f
-      , "required"      .= required f
-      , "dictionaryName".= dictionaryName f
       , "groupName"     .= groupName f
-      , "invisible"     .= invisible f
-      , "readonly"      .= readonly f
       , "canRead"       .= canRead f
       , "canWrite"      .= canWrite f
-      , "referencables" .= referencables f
+      , "meta"          .= meta f
       ]
 
 
