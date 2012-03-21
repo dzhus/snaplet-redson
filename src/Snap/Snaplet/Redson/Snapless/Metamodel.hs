@@ -146,6 +146,15 @@ instance ToJSON Field where
 
 type Groups = M.Map B.ByteString [Field]
 
+-- | Build new name `f:gK` for every field of group `g` to which field
+-- `f` is spliced into.
+groupFieldName :: FieldName
+               -- ^ Name of field which is spliced into group
+               -> FieldName
+               -- ^ Name of group field
+               -> FieldName
+groupFieldName parent field = B.concat [parent, ":", field]
+
 -- | Replace all model fields having `group` type with actual group
 -- fields.
 spliceGroups :: Groups -> Model -> Model
@@ -155,11 +164,13 @@ spliceGroups groups model =
     in
       model{fields = concat $
             map (\f -> 
-                 case (groupName f, fieldType f) of
-                   (Just n, "group") -> 
+                 case groupName f of
+                   Just n -> 
                        case (M.lookup n groups) of
                          Just grp -> 
-                             map (\gf -> gf{groupName = Just n}) grp
+                             map (\gf -> gf{ groupName = Just n
+                                           , name = groupFieldName (name f) (name gf)
+                                           }) grp
                          Nothing -> [f]
                    _ -> [f]
                 ) origFields}

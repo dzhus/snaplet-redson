@@ -319,10 +319,27 @@
 
     `meta` for every field as served as-is without any changes.
 
-    Every field with type `group` is spliced into list of actual group
-    members in served model, and `groupName` property is attached to
-    every field in splice result. Client may use this data to
-    recognize fields from the same group and render them specifically.
+    Every field `f` with type `group` is spliced into list of actual
+    group members in served model, and `groupName` property is
+    attached to every field in splice result, with value equal to name
+    of group. Name of every field in group is prepended with `f:`,
+    where `f` is the name of original field which was spliced into
+    group. Client may use this data to recognize fields from the same
+    group and render them specifically.
+
+    /Example/:
+
+    Assuming group `bar` has fields named `f1`, `f2` and `f3`, and
+    model has field with group splice annotation:
+
+    #+BEGIN_SRC javascript
+      "name": "foo",
+      "groupName": "bar"
+    #+END_SRC
+
+    then `foo` will be spliced into fields named `foo:f1`, `foo:f2`
+    and `foo:f3`, and `groupName` for all these fields will be set to
+    `bar`.
 
     Client may also request list of readable models from
 
