@@ -147,10 +147,11 @@ getOldIndices key findices = do
 
 
 ------------------------------------------------------------------------------
--- | Extract values of named fields from commit.
+-- | Extract values of named fields from commit. If field is not
+-- present in commit, empty string is used for its value instead.
 onlyFields :: Commit -> [FieldName] -> [FieldValue]
-onlyFields commit fields =
-    catMaybes $ map (flip M.lookup commit) fields
+onlyFields commit names =
+    map (\fieldName -> fromMaybe "" (M.lookup fieldName commit)) names
 
 
 ------------------------------------------------------------------------------
