@@ -395,6 +395,7 @@ search =
         fetchInstance id key = runRedisDB database $ do
                                  Right r <- hgetall key
                                  return $ (M.fromList $ ("id", id):r)
+        comma = 0x2c
     in
       ifTop $ withCheckSecurity $ \_ mdl -> do
         case mdl of
@@ -407,6 +408,8 @@ search =
               mType <- getParam "_matchType"
               sType <- getParam "_searchType"
               iLimit <- getParam "_limit"
+              outFields <- (\p -> maybe [] (B.split comma) p) <$>
+                           getParam "_fields"
 
               patFunction <- return $ case mType of
                                Just "p"  -> prefixMatch
@@ -437,6 +440,7 @@ search =
                                                   Just (i, s))
                              (indices m)
 
+              -- For every term, get list of ids which match it
               termIds <- runRedisDB database $
                          redisSearch m (catMaybes indexValues) patFunction
 
@@ -445,10 +449,17 @@ search =
                 [] -> writeLBS $ A.encode ([] :: [Value])
                 tids -> do
                       -- Finally, list of matched instances
-                      instances <- mapM (\id -> fetchInstance id $
-                                                CRUD.instanceKey mname id)
-                                   (searchType tids)
-                      writeLBS $ A.encode (take itemLimit instances)
+                      instances <- take itemLimit <$> 
+                                   mapM (\id -> fetchInstance id $
+                                         CRUD.instanceKey mname id)
+                                  (searchType tids)
+                      -- If _fields provided, leave only requested
+                      -- fields and serve array of arrays. Otherwise,
+                      -- serve array of objects.
+                      case outFields of
+                        [] -> writeLBS $ A.encode instances
+                        _ -> writeLBS $ A.encode $
+                             map (flip CRUD.onlyFields outFields) instances
               return ()
 
 

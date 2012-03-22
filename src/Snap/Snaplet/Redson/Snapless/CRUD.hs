@@ -20,6 +20,7 @@ module Snap.Snaplet.Redson.Snapless.CRUD
     , modelIndex
     , modelTimeline
     , collate
+    , onlyFields
     )
 
 where
@@ -134,6 +135,7 @@ deleteIndices mname id commit =
     mapM_ (\(i, v) -> srem (modelIndex mname i v) [id])
           commit
 
+
 ------------------------------------------------------------------------------
 -- | Get old values of index fields stored under key.
 getOldIndices :: B.ByteString -> [FieldName] -> Redis [Maybe B.ByteString]
@@ -142,6 +144,14 @@ getOldIndices key findices = do
   return $ case reply of
              Left _ -> []
              Right l -> l
+
+
+------------------------------------------------------------------------------
+-- | Extract values of named fields from commit.
+onlyFields :: Commit -> [FieldName] -> [FieldValue]
+onlyFields commit fields =
+    catMaybes $ map (flip M.lookup commit) fields
+
 
 ------------------------------------------------------------------------------
 -- | Create new instance in Redis and indices for it.

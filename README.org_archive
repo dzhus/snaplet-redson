@@ -62,3 +62,16 @@ Archived entries from file /home/sphinx/projects/snaplet-redson/README.org
   separate group and served back to client transparently. This way
   we'll be able to modify models and client without fiddling with
   Metamodel.hs.
+
+* DONE [#A] Faster search
+  CLOSED: [2012-03-22 Чтв 20:54]
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2012-03-22 Чтв 20:54
+  :ARCHIVE_FILE: ~/projects/snaplet-redson/README.org
+  :ARCHIVE_OLPATH: To do
+  :ARCHIVE_CATEGORY: README
+  :ARCHIVE_TODO: DONE
+  :END:
+  We should support serving of results as a table (array of arrays)
+  to avoid redundant field names served with every matched instance.
+  Client should be able to set fields to be served in output.

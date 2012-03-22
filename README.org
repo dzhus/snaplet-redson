@@ -425,7 +425,14 @@
    - _searchType=and or _searchType=or which indicates if all search
      terms must match or just any of them.
 
-   Response is currently list of JSON objects for matched instances.
+   - _fields=f1,f2,f3 which is a list of fields which must be
+     extracted from every matched instance and served in response.
+
+   Response is a list of JSON objects for matched instances. If
+   _fields is provided, then response is a list of arrays instead,
+   where every array contains values of specified fields in instance
+   (in order given by _fields parameter).
+
    No per-field read permissions are checked.
 ** Extra features
 *** Timeline
@@ -481,10 +488,9 @@
    be changed without Redson restart anyways, and restart will be
    required when new users are added as well).
 
-** TODO [#A] Faster search
-   We should support serving of results as a table (array of arrays)
-   to avoid redundant field names served with every matched instance.
-   Client should be able to set fields to be served in output.
+** TODO External search providers
+   Might subscribe to model events via socket. Provides lists of
+   matching instance ids.
 ** MAYBE Update inverse references
    When instance of model becomes referenced by another instance,
    inverse reference should be updated by server.
