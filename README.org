@@ -431,7 +431,8 @@
    Response is a list of JSON objects for matched instances. If
    _fields is provided, then response is a list of arrays instead,
    where every array contains values of specified fields in instance
-   (in order given by _fields parameter).
+   (in order given by _fields parameter; if value is not present
+   then null is used).
 
    No per-field read permissions are checked.
 ** Extra features
