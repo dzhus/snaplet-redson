@@ -48,3 +48,17 @@ Archived entries from file /home/sphinx/projects/snaplet-redson/README.org
   `/_/<formname>/` requests to emptyPage handler by checking `id`
   parameter value in read handler.
   
+
+* DONE Allow any meta flags for fields
+  CLOSED: [2012-03-22 Чтв 02:41]
+  :PROPERTIES:
+  :ARCHIVE_TIME: 2012-03-22 Чтв 15:41
+  :ARCHIVE_FILE: ~/projects/snaplet-redson/README.org
+  :ARCHIVE_OLPATH: To do
+  :ARCHIVE_CATEGORY: README
+  :ARCHIVE_TODO: DONE
+  :END:
+  Field options which are not used by the server should be stored in
+  separate group and served back to client transparently. This way
+  we'll be able to modify models and client without fiddling with
+  Metamodel.hs.
