@@ -49,8 +49,8 @@ substringMatch model (field, value) =
 
 
 ------------------------------------------------------------------------------
--- | Redis action which returns list of instance id's matching given
--- search terms.
+-- | Redis action which returns list of matching instance id's for
+-- every search term.
 redisSearch :: Model
             -- ^ Model instances of which are being searched
             -> [SearchTerm]
