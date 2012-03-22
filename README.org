@@ -84,15 +84,14 @@
 
 ***** /type/
       
-      Type system currently matches HTML input element types, with
-      following values valid for `type`:
+      Type system currently does not impose any checks on server side.
+      Following values are proposed for `type`:
 
       - "text",
       - "textarea",
       - "checkbox",
       - "dictionary",
-      - "reference",
-      - "group"
+      - "reference"
 
       Default field type is `text`
 
@@ -106,11 +105,6 @@
       `<formname>` is the name of form to which the reference is
       stored and `<instanceid>` is the id of specific instance of that
       form.
-
-      If type of field is `group`, then field entry actually describes
-      a named group of fields, contents of which must be given in
-      group fields file (see below). No field parameters other than
-      `name`, `type` and `groupName` are required for such fields.
 
 ***** /canRead / canWrite/
       Per-field permissions have the same syntax as per-field per-form
@@ -131,10 +125,11 @@
         
         
 ***** /groupName/
-      `groupName` key must be present if field type is `group`,
-      and must be equal to name of one of the complex field groups as
-      described in group fields file (see below). Client must render
-      `group` field as a group of fields.
+      If `groupName` key is present, its values must be equal to name
+      of one of the complex field groups as described in group fields
+      file. When server processes model description, such fields are
+      spliced into list of fields as described for that group (see
+      below).
 ***** /index/
       Boolean which instructs server to create or update exact reverse
       index on that field on create/update/delete operations.
@@ -285,8 +280,8 @@
        }
      #+END_SRC
 
-     Using `group` field type in group field description is not
-     allowed (no recursive complex fields).
+     Using `groupName` in field description is not allowed (no
+     recursive complex fields).
      
 *** Permissions
 
@@ -319,13 +314,13 @@
 
     `meta` for every field as served as-is without any changes.
 
-    Every field `f` with type `group` is spliced into list of actual
-    group members in served model, and `groupName` property is
-    attached to every field in splice result, with value equal to name
-    of group. Name of every field in group is prepended with `f:`,
-    where `f` is the name of original field which was spliced into
-    group. Client may use this data to recognize fields from the same
-    group and render them specifically.
+    Every field `f` with `groupName` annotation is spliced into list
+    of actual group members in served model, and `groupName` property
+    is attached to every field in splice result, with value equal to
+    name of group. Name of every field in group is prepended with
+    `f:`, where `f` is the name of original field which was spliced
+    into group. Client may use this data to recognize fields from the
+    same group and render them specifically.
 
     /Example/:
 
@@ -499,11 +494,6 @@
 
    Perhaps orphan dependent models should be cleared if parent is
    deleted.
-** TODO Allow any meta flags for fields
-   Field options which are not used by the server should be stored in
-   separate group and served back to client transparently. This way
-   we'll be able to modify models and client without fiddling with
-   Metamodel.hs.
 ** SOMEDAY Factor out Snap.Snaplet.Redson.Util to snap-errors module
 ** MAYBE Force default values when creating instance
 ** TODO Configurable pool size
