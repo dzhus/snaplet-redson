@@ -317,8 +317,8 @@
     Every field `f` with `groupName` annotation is spliced into list
     of actual group members in served model, and `groupName` property
     is attached to every field in splice result, with value equal to
-    name of group. Name of every field in group is prepended with
-    `f:`, where `f` is the name of original field which was spliced
+    name of group. Name of every field in group is *prepended* with
+    `f_`, where `f` is the name of original field which was spliced
     into group. Client may use this data to recognize fields from the
     same group and render them specifically.
 
@@ -332,8 +332,8 @@
       "groupName": "bar"
     #+END_SRC
 
-    then `foo` will be spliced into fields named `foo:f1`, `foo:f2`
-    and `foo:f3`, and `groupName` for all these fields will be set to
+    then `foo` will be *spliced into* fields named `foo_f1`, `foo_f2`
+    and `foo_f3`, and `groupName` for all these fields will be set to
     `bar`.
 
     Client may also request list of readable models from

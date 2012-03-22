@@ -146,14 +146,14 @@ instance ToJSON Field where
 
 type Groups = M.Map B.ByteString [Field]
 
--- | Build new name `f:gK` for every field of group `g` to which field
+-- | Build new name `f_gK` for every field of group `g` to which field
 -- `f` is spliced into.
 groupFieldName :: FieldName
                -- ^ Name of field which is spliced into group
                -> FieldName
                -- ^ Name of group field
                -> FieldName
-groupFieldName parent field = B.concat [parent, ":", field]
+groupFieldName parent field = B.concat [parent, "_", field]
 
 -- | Replace all model fields having `group` type with actual group
 -- fields.
