@@ -23,6 +23,7 @@ library
   exposed-modules:      Snap.Snaplet.Redson,
                         Snap.Snaplet.Redson.Snapless.CRUD,
                         Snap.Snaplet.Redson.Snapless.Metamodel,
+                        Snap.Snaplet.Redson.Snapless.Metamodel.Loader,
                         Snap.Snaplet.Redson.Util
   other-modules:        Snap.Snaplet.Redson.Permissions,
                         Snap.Snaplet.Redson.Search

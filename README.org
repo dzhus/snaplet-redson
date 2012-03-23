@@ -407,6 +407,18 @@
 
      : {"code":"076-2","title":"Able","description":"Really nasty thing","class":"Keter"}
 
+** Snapless operation
+   The package provides Snap.Snaplet.Redson.Snapless.* modules:
+
+   - CRUD — low-level operation with Redis DB (on commit level, where
+     commit is a list of key-value pairs for named hash); operations
+     support index updates so use this for tools which need to fiddle
+     with Redson indices;
+
+   - Metamodel — model definition parsing;
+
+   - Loader — load models from filesystem locations, splicing groups;
+     served models are provided using this module.
 ** Search
    Search interface for model <modelname> is available under
    `/_/<modelname>/search` access point via GET method. canRead form permission is
