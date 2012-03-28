@@ -385,8 +385,6 @@ defaultSearchLimit = 100
 -----------------------------------------------------------------------------
 -- | Serve model instances which have index values containing supplied
 -- search parameters.
---
--- TODO Allow to request only subset of fields and serve them in array.
 search :: Handler b (Redson b) ()
 search = 
     let
