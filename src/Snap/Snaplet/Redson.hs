@@ -62,8 +62,6 @@ import Snap.Snaplet.Redson.Util
 
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
---
--- *TODO*: Use HashMap to store models?
 data Redson b = Redson
              { _database :: Snaplet RedisDB
              , auth :: Lens b (Snaplet (AuthManager b))

@@ -4,8 +4,6 @@
 
 Snap-agnostic low-level CRUD operations.
 
-(This module may be refactored to a separate package.)
-
 This module may be used for batch uploading of database data.
 
 -}

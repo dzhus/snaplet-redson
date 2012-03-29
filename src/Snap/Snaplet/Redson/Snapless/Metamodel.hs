@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
--- | Model partial parser which allows to extract field
--- permissions data.
+-- | Model definition parser, served model routines.
 
 module Snap.Snaplet.Redson.Snapless.Metamodel
 
@@ -23,10 +22,8 @@ import qualified Data.Map as M
 
 type ModelName = B.ByteString
 
--- | Field name.
 type FieldName = B.ByteString
 
--- | Field value.
 type FieldValue = B.ByteString
 
 -- | Name of indexed field and collation flag.
