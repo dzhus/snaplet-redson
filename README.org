@@ -548,4 +548,9 @@
      listener has no access to certain fields and we can't strip
      commit for every listener personally))
    - [ ] possibly use native Redis' publish/subscribe mechanism
-     
+** TODO Support search in transparent mode
+   Currently only index fields of model are searched against, which
+   means that model definition must be available for searching (this
+   also required redundant `name` field in form definition), while in
+   fact redisSearch can be implemented using ModelName only. External
+   providers must support name-only operation as well.
