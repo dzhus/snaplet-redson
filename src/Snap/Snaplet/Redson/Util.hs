@@ -34,6 +34,7 @@ handleError err = do
     r <- getResponse
     finishWith r
 
+
 notFound :: Error
 notFound = Error 404
 

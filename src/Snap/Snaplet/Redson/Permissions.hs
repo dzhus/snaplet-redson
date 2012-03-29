@@ -21,13 +21,16 @@ import qualified Data.Map as M
 import Snap.Core (Method(..))
 import Snap.Snaplet.Auth
 
+
 import Snap.Snaplet.Redson.Snapless.Metamodel
+
 
 -- | User who has all permissions (used in security-disabled mode).
 data SuperUser = SuperUser
 
 -- | Either superuser or logged in user.
 type User = Either SuperUser AuthUser
+
 
 -- | Map between CRUD methods and form permission lenses.
 methodMap :: [(Method, Lens Model Permissions)]
@@ -36,6 +39,7 @@ methodMap = [ (POST,   canCreateM)
             , (PUT,    canUpdateM)
             , (DELETE, canDeleteM)
             ]
+
 
 -- | Check if provided roles meet the permission requirements.
 --
@@ -78,7 +82,7 @@ getFieldPermissions (Right user) model =
                                   (userRoles user))
                        (fields model)
     in
-      (union (getFields canRead) (getFields canWrite), getFields canWrite)
+      (union (getFields _canRead) (getFields _canWrite), getFields _canWrite)
 
 
 -- | Get list of CRUD/HTTP methods accessible by user for model.
@@ -147,7 +151,7 @@ stripModel user model =
                          (\f -> elem (name f) readables)
                          (fields model)
         -- Fields with boolean canWrite's
-        strippedFields = map (\f -> f{canWrite = stripMapper $
+        strippedFields = map (\f -> f{_canWrite = stripMapper $
                                       elem (name f) writables})
                          readableFields
         formPerms = getModelPermissions user model
@@ -156,4 +160,4 @@ stripModel user model =
                              p ^= (stripMapper $ elem m formPerms)) 
                         methodMap
     in
-      foldl' (\m f -> f m) model{ fields = strippedFields } boolFormPerms
+      foldl' (\m f -> f m) model{fields = strippedFields} boolFormPerms

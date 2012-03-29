@@ -59,6 +59,7 @@ import Snap.Snaplet.Redson.Permissions
 import Snap.Snaplet.Redson.Search
 import Snap.Snaplet.Redson.Util
 
+
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
 --
@@ -158,11 +159,13 @@ modelMessage event = \model id ->
     in
       DataMessage $ Text $ A.encode $ M.fromList response
 
+
 -- | Model instance creation message.
 creationMessage :: ModelName
                 -> CRUD.InstanceId
                 -> Network.WebSockets.Message p
 creationMessage = modelMessage "create"
+
 
 -- | Model instance deletion message.
 deletionMessage :: ModelName
@@ -335,6 +338,7 @@ modelEvents = ifTop $ do
                                   acceptRequest r
                                   PS.subscribe ps)
 
+
 ------------------------------------------------------------------------------
 -- | Serve JSON metamodel with respect to current user and field
 -- permissions.
@@ -348,6 +352,7 @@ metamodel = ifTop $ do
       Just m -> do
         modifyResponse $ setContentType "application/json"
         writeLBS (A.encode $ stripModel au m)
+
 
 ------------------------------------------------------------------------------
 -- | Serve JSON array of readable models to user. Every array element
@@ -385,6 +390,8 @@ defaultSearchLimit = 100
 -----------------------------------------------------------------------------
 -- | Serve model instances which have index values containing supplied
 -- search parameters.
+--
+-- Currently not available in transparent mode.
 search :: Handler b (Redson b) ()
 search = 
     let
@@ -460,7 +467,6 @@ search =
                         _ -> writeLBS $ A.encode $
                              map (flip CRUD.onlyFields outFields) instances
               return ()
-
 
 
 -----------------------------------------------------------------------------
