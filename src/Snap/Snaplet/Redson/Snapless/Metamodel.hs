@@ -13,10 +13,13 @@ import Control.Applicative
 import Data.Aeson
 import qualified Data.ByteString as B
 
+import Data.Lens.Common
 import Data.Lens.Template
 import Data.List
+import Data.Maybe
 
 import qualified Data.Map as M
+
 
 type ModelName = B.ByteString
 
@@ -28,6 +31,7 @@ type FieldValue = B.ByteString
 
 -- | Name of indexed field and collation flag.
 type FieldIndex = (FieldName, Bool)
+
 
 -- | List of field key-value pairs.
 --
@@ -41,9 +45,17 @@ data Permissions = Roles [B.ByteString]
                  | Nobody
                  deriving Show
 
+
+data FieldTargets = Fields [FieldName]
+                  | AllFields
+                  | NoneFields
+                  deriving Show
+
+
 -- | Map of field annotations which are transparently handled by
 -- server without any logic.
 type FieldMeta = M.Map FieldName Value
+
 
 -- | Form field object.
 data Field = Field { name           :: FieldName
@@ -52,20 +64,34 @@ data Field = Field { name           :: FieldName
                    , indexCollate   :: Bool
                    , groupName      :: Maybe B.ByteString
                    , meta           :: Maybe FieldMeta
-                   , canRead        :: Permissions
-                   , canWrite       :: Permissions
+                   , _canRead       :: Permissions
+                   , _canWrite      :: Permissions
                    }
              deriving Show
+
+makeLenses [''Field]
+
+
+-- | A list of properties to be applied to named fields.
+data Application = Application { targets    :: FieldTargets
+                               , apMeta     :: Maybe FieldMeta
+                               , _apRead    :: Maybe Permissions
+                               , _apWrite   :: Maybe Permissions
+                               }
+                   deriving Show
+
+makeLenses [''Application]
 
 
 -- | Model describes fields and permissions.
 --
 -- Models are built from JSON definitions (using FromJSON instance for
--- Model) with further group splicing ('spliceGroups') and index
--- caching ('cacheIndices').
+-- Model) with further group splicing ('spliceGroups'), applications
+-- ('doApplications') and index caching ('cacheIndices').
 data Model = Model { modelName      :: ModelName
                    , title          :: B.ByteString
                    , fields         :: [Field]
+                   , applications   :: [Application]
                    , _canCreateM    :: Permissions
                    , _canReadM      :: Permissions
                    , _canUpdateM    :: Permissions
@@ -87,6 +113,7 @@ instance FromJSON Model where
         v .: "name"                       <*>
         v .: "title"                      <*>
         v .: "fields"                     <*>
+        v .:? "applications" .!= []       <*>
         v .:? "canCreate" .!= Nobody      <*>
         v .:? "canRead"   .!= Nobody      <*>
         v .:? "canUpdate" .!= Nobody      <*>
@@ -138,13 +165,30 @@ instance ToJSON Field where
       , "index"         .= index f
       , "indexCollate"  .= indexCollate f
       , "groupName"     .= groupName f
-      , "canRead"       .= canRead f
-      , "canWrite"      .= canWrite f
+      , "canRead"       .= _canRead f
+      , "canWrite"      .= _canWrite f
       , "meta"          .= meta f
       ]
 
 
+instance FromJSON FieldTargets where
+    parseJSON (Bool True)  = return AllFields
+    parseJSON (Bool False) = return NoneFields
+    parseJSON v@(Array _)  = Fields <$> parseJSON v
+    parseJSON _            = error "Could not application targets"
+
+
+instance FromJSON Application where
+    parseJSON (Object v) = Application  <$>
+      v .:? "targets" .!= NoneFields    <*>
+      v .:? "meta"                      <*>
+      v .:? "canRead"                   <*>
+      v .:? "canWrite"
+    parseJSON _          = error "Could not parse application entry"
+
+
 type Groups = M.Map B.ByteString [Field]
+
 
 -- | Build new name `f_gK` for every field of group `g` to which field
 -- `f` is spliced into.
@@ -154,6 +198,7 @@ groupFieldName :: FieldName
                -- ^ Name of group field
                -> FieldName
 groupFieldName parent field = B.concat [parent, "_", field]
+
 
 -- | Replace all model fields having `group` type with actual group
 -- fields.
@@ -176,12 +221,58 @@ spliceGroups groups model =
                 ) origFields}
 
 
+-- | Perform all applications in model.
+doApplications :: Model -> Model
+doApplications model =
+    let
+        -- Update values in old meta with those specified in
+        -- application meta
+        mergeFieldsMeta :: Maybe FieldMeta -> Field -> Field
+        mergeFieldsMeta (Just patchMeta) original =
+            let 
+                oldMeta = fromMaybe M.empty (meta original)
+                -- TODO Monoid is out there
+                newMeta =
+                    M.foldlWithKey' (\o k v -> M.insert k v o) oldMeta patchMeta
+            in
+              original{meta = Just newMeta}
+        mergeFieldsMeta Nothing original = original
+
+        -- Try to perform application for fields in list.
+        processField :: [Field] -> Application -> [Field]
+        processField (f:fs) ap =
+            let
+                -- List of setters to apply to field which will update
+                -- it with application values
+                patchBits :: [Field -> Field]
+                patchBits = [mergeFieldsMeta (apMeta ap)] ++
+                          map (\(from, to) -> 
+                                   maybe id (to ^=) (ap ^. from))
+                          [ (apRead,  canRead)
+                          , (apWrite, canWrite)
+                          ]
+                patch = foldl1' (.) patchBits
+                -- Meta field is merged separately
+                newF = case targets ap of
+                         AllFields -> patch f
+                         Fields ts -> if (elem (name f) ts)
+                                      then patch f
+                                      else f
+                         _ -> f
+            in
+              newF:(processField fs ap)
+        processField [] _ = []
+    in
+      model{fields = foldl' processField (fields model) (applications model)}
+
+
 -- | Set indices field of model to list of 'FieldIndex'es
 cacheIndices :: Model -> Model
 cacheIndices model = 
-    model{indices = foldl' 
-                    (\l f -> case (index f, indexCollate f) of
-                               (True, c) -> (name f, c):l
-                               _ -> l
-                    ) 
-          [] (fields model)}
+    let
+        maybeCacheIndex indexList field =
+            case (index field, indexCollate field) of
+              (True, c) -> (name field, c):indexList
+              _ -> indexList
+    in
+      model{indices = foldl' maybeCacheIndex [] (fields model)}

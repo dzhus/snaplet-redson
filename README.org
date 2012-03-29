@@ -58,6 +58,9 @@
      List of field objects, where every field object has keys listed
      below.
      
+**** applications
+     List of application objects which target many fields at once (see
+     below).
 *** Valid field keys
 **** name
 
@@ -276,6 +279,40 @@
     - Attempt to create or update instances with unwritable fields
       will be rejected with 403 Forbidden.
 
+*** Field applications
+    It's possible to change certain annotations for many fields in
+    model with one instruction. `application` key of form definition
+    contains a list of application objects. Every application object
+    may contain `canRead`, `canWrite` and `meta` keys with same syntax
+    as in fields. Additionally, `targets` keys must be present. If
+    `targets` is a list of field names, then new values for `canRead`,
+    `canWrite` are set for matched fields. `true` value of `targets`
+    matches every field. `meta` values from application and matched
+    field are merged, with meta keys from application having
+    precedence over field meta.
+    
+    Example (set new label and foo meta, new permissions for all fields):
+    #+BEGIN_SRC javascript
+      {
+          "targets": true,
+          "meta": {
+              "label": "Renamed label",
+              "foo": "bar"
+          },
+          "canRead": ["changed_role"],
+          "canWrite": false
+      }
+    #+END_SRC
+
+    Example (change label of "foo" field):
+    #+BEGIN_SRC javascript
+      {
+          "targets": ["foo"],
+          "meta": {
+              "label": "Foo field"
+          }
+      }
+    #+END_SRC
 *** Served models
     Client may request stripped form description by sending this
     request:
@@ -318,6 +355,11 @@
      then `foo` will be *spliced into* fields named `foo_f1`, `foo_f2`
      and `foo_f3`, and `groupName` for all these fields will be set to
      `bar`.
+**** Applications
+     Applications are performed (in sequence following the order
+     they're listed in model definition) *after* group splicing, which
+     means applications may be used to override default field
+     annotations set for group members in `field-groups-file`.
 **** Index fields list caching
 
      Served form will also contain `indices` field which is a list of

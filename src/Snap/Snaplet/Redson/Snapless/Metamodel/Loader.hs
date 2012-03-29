@@ -53,6 +53,7 @@ loadModel modelFile groups =
       return $ case mres of
                  Just model -> Just $ 
                                cacheIndices $
+                               doApplications $
                                spliceGroups groups model
                  Nothing -> Nothing
 
