@@ -40,8 +40,8 @@ loadGroups :: FilePath -> IO (Maybe Groups)
 loadGroups = parseFile
 
 
--- | Load model from specified location, performing group splicing and
--- filling index cache.
+-- | Load model from specified location, performing group splicing,
+-- applications and filling index cache.
 loadModel :: FilePath
           -- ^ Path to model definition file
           -> Groups 
@@ -63,7 +63,7 @@ pathToModelName :: FilePath -> ModelName
 pathToModelName filepath = BU.fromString $ takeBaseName filepath
 
 
--- | Read all models from directory to a map, splicing group fields.
+-- | Read all models from directory to a map.
 --
 -- TODO: Perhaps rely on special directory file which explicitly lists
 -- all models.
