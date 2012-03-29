@@ -4,8 +4,6 @@
 
 Snap-agnostic low-level CRUD operations.
 
-(This module may be refactored to a separate package.)
-
 This module may be used for batch uploading of database data.
 
 -}
@@ -20,6 +18,7 @@ module Snap.Snaplet.Redson.Snapless.CRUD
     , modelIndex
     , modelTimeline
     , collate
+    , onlyFields
     )
 
 where
@@ -134,6 +133,7 @@ deleteIndices mname id commit =
     mapM_ (\(i, v) -> srem (modelIndex mname i v) [id])
           commit
 
+
 ------------------------------------------------------------------------------
 -- | Get old values of index fields stored under key.
 getOldIndices :: B.ByteString -> [FieldName] -> Redis [Maybe B.ByteString]
@@ -142,6 +142,13 @@ getOldIndices key findices = do
   return $ case reply of
              Left _ -> []
              Right l -> l
+
+
+------------------------------------------------------------------------------
+-- | Extract values of named fields from commit.
+onlyFields :: Commit -> [FieldName] -> [Maybe FieldValue]
+onlyFields commit names = map (flip M.lookup commit) names
+
 
 ------------------------------------------------------------------------------
 -- | Create new instance in Redis and indices for it.
