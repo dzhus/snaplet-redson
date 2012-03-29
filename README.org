@@ -2,270 +2,268 @@
 
 * Overview
   This snaplet provides create-read-update-delete operations for any
-  JSON data with Redis storage.
+  JSON objects with Redis storage. Role-based permissions system is
+  supported.
 
-** CRUD
-   We implement generic CRUD for our forms using Redson snaplet, which
-   is best explained by its routes (assuming they're installed in
-   top-level snaplet under `/_` URL; prefix may be changed using
-   nestSnaplet in parent initializer).
+  Primary notion of Redson is a model, or form, which is a named
+  collection of fields with certain extra annotations. Every filled
+  form («instance of model») has unique ID when stored in Redis.
 
-   All interactions with server use JSON as primary format, which is
-   what Backbone uses by default for fetch(), save() and destroy()
-   model methods, sending JSON with actual form contents to server,
-   which maps them to Redis hashes stored under `<modelname>:<id>`
-   key. Fresh id's are provided by using `global:<modelname>:<id>` key
-   which is INCR-ed after every new form instance is created in
-   database.
+  Models must be defined prior to usage with special syntax.
+  Transparent mode is supported in which model definitions are not
+  checked, but permissions engine is unavailable as well. Certain
+  transformations may be applied to model definition by server and
+  served to client (see «served models»).
+
+** Models
+
+   Prior to reading and writing form data, the server reads form
+   (model) definition from JSON files stored in directory set by
+   `models-directory` setting (defaults to `resources/models/`),
+   unless `transparent-mode` setting is set to `true` (see below).
+
+   Valid keys for form and fields are listed below, with non-required
+   fields marked by /slant/.
    
-   No schema checking is performed by server, but permissions engine
-   will disallow writing arbitary models and fields to server.
+*** Model name
+    Consider a model is stored in `scp.js` file; we define
+    modelname as filename without extension (`scp`), which is used in URL
+    to access forms built from this model.
 
-   CRUD mapping to HTTP methods is implemented in Redson as expected
-   by Backbone:
+*** Valid form keys
+**** name
+     Internal name of model. Must match the basename of JSON file
+     model definition is stored in.
+**** title
+     Human-readable form title.
+**** /canCreate / canUpdate / canRead / canDelete/
+     Each field lists roles having access to specific CRUD methods
+     for model. Boolean values may be used instead of role lists as
+     well, with `false` meaning «none of the roles» and `true`
+     meaning «all the roles». Empty list is the same as `false`.
 
-   : CREATE → POST /<formid>
-   : READ → GET /<formid>/<instanceid>/
-   : UPDATE → PUT /<formid>/<instanceid>/
-   : DELETE → DELETE /<formid>/<instanceid>/
+     Implementation follows these rules:
 
-   Redson snaplet is parametrized by AuthManager snaplet lens (usually
-   from top-level application). All methods implemented by Redson
-   require user to be logged in, 401 Unauthorized HTTP error response
-   is issued otherwise.
+     - `canCreate` implies `canUpdate` permission.
 
-*** Models
+     Note that per-field permissions are still checked after
+     whole-form ones succeed.
 
-    Prior to reading and writing form data, the server reads form
-    (model) definition which from JSON files stored in directory set
-    by `models-directory` setting (defaults to `resources/models/`),
-    unless `transparent-mode` setting is set to `true` (see below).
+     If field is not included in model definition, `false` is
+     implied.
 
-    Form id is the basename of file which contains form definition.
-
-    Valid keys for form and fields are listed below, with non-required
-    fields marked by /slant/.
-    
-**** Valid form keys
-***** name
-      Internal name of model. Must match the basename of JSON file
-      model definition is stored in.
-***** title
-      Human-readable form title.
-***** /canCreate / canUpdate / canRead / canDelete/
-      Each field lists roles having access to specific CRUD methods
-      for model. Boolean values may be used instead of role lists as
-      well, with `false` meaning «none of the roles» and `true`
-      meaning «all the roles». Empty list is the same as `false`.
-
-      Implementation follows these rules:
-
-      - `canCreate` implies `canUpdate` permission.
-
-      Note that per-field permissions are still checked after
-      whole-form ones succeed.
-
-      If field is not included in model definition, `false` is
-      implied.
-
-      Attempt to violate permissions results in 403 Forbidden error.
-      
-***** fields
-      List of field objects, where every field object has keys listed
-      below.
-      
-**** Valid field keys
-***** name
-      Field object must include `name` key which is the internal name of
-      the field.
-
-      `class` cannot be used as a field name.
-***** /default/
-      Specifies the default value of field. Must somehow match the
-      field type, currently processed on client side only (so any
-      JavaScript value is valid).
-      
-***** /type/
-      
-      Type system currently matches HTML input element types, with
-      following values valid for `type`:
-
-      - "text",
-      - "textarea",
-      - "checkbox",
-      - "dictionary",
-      - "reference",
-      - "group"
-
-      Default field type is `text`
-
-      Client uses type data to properly render field contents.
-
-      If type of field is `reference`, then field holds a number of
-      references to another form instances. The client may provide
-      interface to edit or view the subform. The actual value provided
-      for the form field with `reference` type should be
-      comma-separated list of `<formname>:<instanceid>` strings, where
-      `<formname>` is the name of form to which the reference is
-      stored and `<instanceid>` is the id of specific instance of that
-      form.
-
-      If type of field is `group`, then field entry actually describes
-      a named group of fields, contents of which must be given in
-      group fields file (see below). No field parameters other than
-      `name`, `type` and `groupName` are required for such fields.
-
-***** /canRead / canWrite/
-      Per-field permissions have the same syntax as per-field per-form
-      permissions. Only readable fields are served to client and only
-      writable are allowed to be changed by client.
-
-      Implementation generally follows these rules:
-
-      - If field is unreadable, then client must not render it. 
-      
-      - If field is not writable by user, then form input element must
-        be inactive.
-
-      - `canWrite` implies `canRead`.
-
-      - Client does not attempt to write inaccessible fields to server
-        and does not expect unreadable fields in server response.
-        
-        
-
-***** /groupName/
-      `groupName` key must be present if field type is `group`,
-      and must be equal to name of one of the complex field groups as
-      described in group fields file (see below). Client must render
-      `group` field as a group of fields.
-***** /dictionaryName/
-      When field type is `dictionary`, `dictionaryName` key must be
-      present in field description as well. Client should provide
-      certain mapping between stored field contents and displayed
-      value using the name of dictionary. No checks on server side are
-      performed.
-***** IN_PROGRESS /referencables/
-      `referencables` key must be present if field type is
-      `reference`, and holds list of models referencable from this
-      field. Client may use this field to provide chooser interface to
-      pick a specific model to store reference to. Empty list is the
-      same as null.
-
-      The server does not check if actual field value matches any of
-      referencable models.
-***** /index/
-      Boolean which instructs server to create or update exact reverse
-      index on that field on create/update/delete operations.
-
-      Redis key used is <modelname>:<field>:<value>, value stored is a
-      set of instance ids with that value for indexed field.
-***** /indexCollate/
-      If field has index=true, then indexCollate instructs Redson
-      whether or not to perform string cleaning (removing punctuation,
-      space, lower-case conversion) prior to saving index values and
-      performing an ad-hoc search against them. Defaults to false. Set
-      this to true if you want to search by names or other
-      user-provided strings.
-
-      This flag may be removed in the upcoming releases.
-***** /requried/
-      Boolean field to indicate that field is required. Client may
-      provide custom checks in UI for such fields. Unused on server
-      yet.
-***** /invisible/
-      Boolean field to indicate that field should not be rendered on
-      UI (or not handled by client at all).
-**** Sample form definition
-     (As described in [[http://scp-wiki.wikidot.com/][The SCP Foundation]] archives)
+     Attempt to violate permissions results in 403 Forbidden error.
      
-     #+BEGIN_SRC javascript
-       {
-           "name": "SCP",
-           "canCreate": ["front"],
-           "canRead": true,
-           "canUpdate": ["front", "back", "manager"],
-           "canDelete": ["manager"]
-           "fields": [
-               {
-                   "name": "code",
-                   "label": "Code",
-                   "canWrite": ["front", "back"]
-               },
-               {
-                   "name": "title",
-                   "label": "Title",
-                   "canWrite": ["front", "back"]
-               },
-               {
-                   "name": "foundAt",
-                   "label": "Original location",
-                   "canWrite": ["front", "back"]
-               },
-               {
-                   "name": "dangerClass",
-                   "type": "dictionary",
-                   "dictionaryName": "DangerClasses",
-                   "default": "lev0",
-                   "label": "Class",
-                   "canRead": ["front"]
-                   "canWrite": ["back"]
-               },
-               {
-                   "name": "conditions",
-                   "type": "textarea",
-                   "label": "Special Containment Procedures",
-                   "canWrite": ["back"]
-               },
-               {
-                   "name": "description",
-                   "type": "textarea",
-                   "label": "Description",
-                   "canWrite": ["back"]
-               }
-           ]
-       }
+**** fields
+     List of field objects, where every field object has keys listed
+     below.
+     
+**** applications
+     List of application objects which target many fields at once (see
+     below).
+*** Valid field keys
+**** name
+
+     Field object must include `name` key which is the internal name of
+     the field.
+
+     `class` cannot be used as a field name.
+
+**** /type/
+     
+     Type system currently does not impose any checks on server side.
+     Following values are proposed for `type`:
+
+     - "text",
+     - "textarea",
+     - "checkbox",
+     - "dictionary",
+     - "reference"
+
+     Default field type is `text`
+
+     Client uses type data to properly render field contents.
+
+     If type of field is `reference`, then field holds a number of
+     references to another form instances. The client may provide
+     interface to edit or view the subform. The actual value provided
+     for the form field with `reference` type should be
+     comma-separated list of `<formname>:<instanceid>` strings, where
+     `<formname>` is the name of form to which the reference is
+     stored and `<instanceid>` is the id of specific instance of that
+     form.
+
+**** /canRead / canWrite/
+     Per-field permissions have the same syntax as per-field per-form
+     permissions. Only readable fields are served to client and only
+     writable are allowed to be changed by client.
+
+     Implementation generally follows these rules:
+
+     - If field is unreadable, then client must not render it. 
+     
+     - If field is not writable by user, then form input element must
+       be inactive.
+
+     - `canWrite` implies `canRead`.
+
+     - Client does not attempt to write inaccessible fields to server
+       and does not expect unreadable fields in server response.
        
-     #+END_SRC
+       
+**** /groupName/
+     If `groupName` key is present, its values must be equal to name
+     of one of the complex field groups as described in group fields
+     file. When server processes model description, such fields are
+     spliced into list of fields as described for that group (see
+     below).
+**** /index/
+     Boolean which instructs server to create or update exact reverse
+     index on that field on create/update/delete operations.
+
+     Redis key used is <modelname>:<field>:<value>, value stored is a
+     set of instance ids with that value for indexed field.
+**** /indexCollate/
+     If field has index=true, then indexCollate instructs Redson
+     whether or not to perform string cleaning (removing punctuation,
+     space, lower-case conversion) prior to saving index values and
+     performing an ad-hoc search against them. Defaults to false. Set
+     this to true if you want to search by names or other
+     user-provided strings.
+
+     This flag may be removed in the upcoming releases.
+**** /meta/
+     A hash of arbitary keys and values which are *not* treated by
+     server in any way. These may be used by a client for
+     field-specific behaviour or templating.
      
-**** Form id
-     Consider a model is stored in `scp.js` file; we define
-     formid as filename without extension (`scp`), which is used in URL
-     to access forms built from this model.
+***** Suggested meta annotations
+****** default
+       Specifies the default value of field. (Will possibly move out
+       of meta if server will enforce default values upon creation
+       some day).
 
+****** dictionaryName
+       When field type is `dictionary`, `dictionaryName` key must be
+       present in field description as well. Client should provide
+       certain mapping between stored field contents and displayed
+       value using the name of dictionary.
 
-**** Group fields
-     A group of fields (complex field) with distinctive name may be
-     shared across several models. Valid complex fields must be
-     defined in a file set by `field-groups-file` setting
-     ("resources/field-groups.json"), which must contain a JSON hash
-     where keys are group names and values are fields in respective
-     group. There's no way to set permissions for complex fields
-     currently.
+****** invisible
+       Boolean field to indicate that field should not be rendered on
+       UI (or not handled by client at all).
+****** label
+       Human-readable field label.
+****** readonly
+       Boolean field to indicate that client must render field as
+       disabled.
+****** requried
+       Boolean field to indicate that field is required. Client may
+       provide custom checks in UI for such fields. (Will possibly
+       move out of meta)
 
-     #+BEGIN_SRC javascript
-       {
-           "address": [
-               {
-                   "name": "city",
-                   "label": "City"
-               },
-               {
-                   "name": "zip",
-                   "label": "ZIP / Postal code"
-               },
-               {
-                   "name": "address",
-                   "label": "Address",
-                   "type": "textarea"
-               }
-           ]
-       }
-     #+END_SRC
+*** Sample form definition
+    (As described in [[http://scp-wiki.wikidot.com/][The SCP Foundation]] archives)
+    
+    #+BEGIN_SRC javascript
+      {
+          "name": "SCP",
+          "canCreate": ["front"],
+          "canRead": true,
+          "canUpdate": ["front", "back", "manager"],
+          "canDelete": ["manager"]
+          "fields": [
+              {
+                  "name": "code",
+                  "meta": {
+                      "label": "Code"
+                  },
+                  "canWrite": ["front", "back"]
+              },
+              {
+                  "name": "title",
+                  "meta": {
+                      "label": "Title"
+                  },
+                  "canWrite": ["front", "back"]
+              },
+              {
+                  "name": "foundAt",
+                  "meta": {
+                      "label": "Original location"
+                  },
+                  "canWrite": ["front", "back"]
+              },
+              {
+                  "name": "dangerClass",
+                  "meta": {
+                      "label": "Danger class",
+                      "dictionaryName": "DangerClasses",
+                      "default": "lev0"
+                  },
+                  "type": "dictionary",
+                  "canRead": ["front"]
+                  "canWrite": ["back"]
+              },
+              {
+                  "name": "conditions",
+                  "meta": {
+                      "label": "Special Containment Procedures"
+                  },
+                  "type": "textarea",
+                  "canWrite": ["back"]
+              },
+              {
+                  "name": "description",
+                  "type": "textarea",
+                  "meta": {
+                      "label": "Description"
+                  },
+                  "canWrite": ["back"]
+              }
+          ]
+      }
+      
+    #+END_SRC
+    
+*** Group fields
+    A group of fields (complex field) with distinctive name may be
+    shared across several models. Valid complex fields must be
+    defined in a file set by `field-groups-file` setting
+    ("resources/field-groups.json"), which must contain a JSON hash
+    where keys are group names and values are fields in respective
+    group.
 
-     Using `group` field type in group field description is not
-     allowed (no recursive complex fields).
-     
+    #+BEGIN_SRC javascript
+      {
+          "address": [
+              {
+                  "name": "city",
+                  "meta": {
+                      "label": "City"
+                  }
+              },
+              {
+                  "name": "zip",
+                  "meta": {
+                      "label": "ZIP / Postal code"
+                  }
+              },
+              {
+                  "name": "address",
+                  "meta": {
+                      "label": "Address"
+                  },
+                  "type": "textarea"
+              }
+          ]
+      }
+      
+    #+END_SRC
+
+    Using `groupName` in field description is not allowed (no
+    recursive complex fields).
+    
 *** Permissions
 
     Per-field permissions (set in canRead and canWrite field
@@ -281,29 +279,125 @@
     - Attempt to create or update instances with unwritable fields
       will be rejected with 403 Forbidden.
 
+*** Field applications
+    It's possible to change certain annotations for many fields in
+    model with one instruction. `application` key of form definition
+    contains a list of application objects. Every application object
+    may contain `canRead`, `canWrite` and `meta` keys with same syntax
+    as in fields. Additionally, `targets` keys must be present. If
+    `targets` is a list of field names, then new values for `canRead`,
+    `canWrite` are set for matched fields. `true` value of `targets`
+    matches every field. `meta` values from application and matched
+    field are merged, with meta keys from application having
+    precedence over field meta.
+    
+    Example (set new label and foo meta, new permissions for all fields):
+    #+BEGIN_SRC javascript
+      {
+          "targets": true,
+          "meta": {
+              "label": "Renamed label",
+              "foo": "bar"
+          },
+          "canRead": ["changed_role"],
+          "canWrite": false
+      }
+    #+END_SRC
+
+    Example (change label of "foo" field):
+    #+BEGIN_SRC javascript
+      {
+          "targets": ["foo"],
+          "meta": {
+              "label": "Foo field"
+          }
+      }
+    #+END_SRC
 *** Served models
     Client may request stripped form description by sending this
     request:
    
-    : GET /<formid>/model/
+    : GET /<modelname>/model/
 
-    Response will contain original description but without fields
-    unreadable by current user. canEdit field property will be set to
-    boolean value for every form field, indicating whether the current
-    user can write to this field. Whole-form permissions will be set to
-    booleans as well, indicating whether the current user has specific
-    permissions. Served form will also contain `indices` field which is a
-    list of index fields of model.
+    Server takes several steps to serve the model.
 
-    Every field with type `group` is spliced into list of actual group
-    members in served model, and `groupName` property is attached to
-    every field in splice result. Client may use this data to
-    recognize fields from the same group and render them specifically.
+**** Permissions processing
+     Response will contain original description but without fields
+     unreadable by current user. canEdit field property will be set to
+     boolean value for every form field, indicating whether the current
+     user can write to this field. Whole-form permissions will be set to
+     booleans as well, indicating whether the current user has specific
+     permissions.
 
-    Client may also request list of readable models from
+**** Meta bags
+     `meta` for every field as served as-is without any changes.
 
-    : GET /_models/
-    
+**** Group splicing
+
+     Every field `f` with `groupName` annotation is spliced into list
+     of actual group members in served model, and `groupName` property
+     is attached to every field in splice result, with value equal to
+     name of group. Name of every field in group is *prepended* with
+     `f_`, where `f` is the name of original field which was spliced
+     into group. Client may use this data to recognize fields from the
+     same group and render them specifically.
+     
+     /Example/:
+
+     Assuming group `bar` has fields named `f1`, `f2` and `f3`, and
+     model has field with group splice annotation:
+
+     #+BEGIN_SRC javascript
+       "name": "foo",
+       "groupName": "bar"
+     #+END_SRC
+
+     then `foo` will be *spliced into* fields named `foo_f1`, `foo_f2`
+     and `foo_f3`, and `groupName` for all these fields will be set to
+     `bar`.
+**** Applications
+     Applications are performed (in sequence following the order
+     they're listed in model definition) *after* group splicing, which
+     means applications may be used to override default field
+     annotations set for group members in `field-groups-file`.
+**** Index fields list caching
+
+     Served form will also contain `indices` field which is a list of
+     index fields of model.
+
+**** Readable models
+     Client may also request list of readable models from
+
+     : GET /_models/
+     
+** CRUD
+   We implement generic CRUD for our forms using Redson snaplet, which
+   is best explained by its routes (assuming they're installed in
+   top-level snaplet under `/_` URL; prefix may be changed using
+   nestSnaplet in parent initializer).
+
+   All interactions with server use JSON objects as primary format.
+   JSON objects are mapped to Redis hashes stored under
+   `<modelname>:<id>` key. Fresh id's are provided by using
+   `global:<modelname>:<id>` key which is INCR-ed after every new form
+   instance is created in database.
+   
+   No schema checking is performed by server, but permissions engine
+   will disallow writing arbitary models and fields to server.
+
+   CRUD mapping to HTTP methods is implemented in Redson as expected
+   by Backbone:
+
+   : CREATE → POST /<modelname>
+   : READ → GET /<modelname>/<instanceid>/
+   : UPDATE → PUT /<modelname>/<instanceid>/
+   : DELETE → DELETE /<modelname>/<instanceid>/
+
+   Redson snaplet is parametrized by AuthManager snaplet lens (usually
+   from top-level application). All methods implemented by Redson
+   require user to be logged in, 401 Unauthorized HTTP error response
+   is issued otherwise.
+
 *** Server interface by example
     
     Assume we're using `scp.js` model given above.
@@ -373,8 +467,8 @@
 
 ** Search
    Search interface for model <modelname> is available under
-   `/_/<modelname>/search` access point via GET method. canRead form permission is
-   required to search for instances.
+   `/_/<modelname>/search` access point via GET method. canRead form
+   permission is required to search for instances.
 
    Accepted parameters are:
 
@@ -389,8 +483,19 @@
    - _searchType=and or _searchType=or which indicates if all search
      terms must match or just any of them.
 
-   Response is currently list of JSON objects for matched instances.
+   - _fields=f1,f2,f3 which is a list of fields which must be
+     extracted from every matched instance and served in response.
+
+   Response is a list of JSON objects for matched instances. If
+   _fields is provided, then response is a list of arrays instead,
+   where every array contains values of specified fields in instance
+   (in order given by _fields parameter; if value is not present
+   then null is used).
+
    No per-field read permissions are checked.
+
+   Currently search is implemented using slow `keys` Redis command,
+   and should be considered an ad-hoc solution only.
 ** Extra features
 *** Timeline
 
@@ -419,6 +524,18 @@
     where `event` is either `create` or `delete`. No permissions are
     checked currently when accessing events.
 
+** Snapless operation
+   The package provides Snap.Snaplet.Redson.Snapless.* modules:
+
+   - CRUD — low-level operation with Redis DB (on commit level, where
+     commit is a list of key-value pairs for named hash); operations
+     support index updates so use this for tools which need to fiddle
+     with Redson indices;
+
+   - Metamodel — model definition parsing;
+
+   - Loader — load models from filesystem locations, splicing groups;
+     served models are provided using this module.
 ** Redis interface
    We use redis bindings provided by snaplet-redis package. Pool size
    numbers are yet to be tuned.
@@ -445,10 +562,9 @@
    be changed without Redson restart anyways, and restart will be
    required when new users are added as well).
 
-** TODO [#A] Faster search
-   We should support serving of results as a table (array of arrays)
-   to avoid redundant field names served with every matched instance.
-   Client should be able to set fields to be served in output.
+** TODO External search providers
+   Might subscribe to model events via socket. Provides lists of
+   matching instance ids.
 ** MAYBE Update inverse references
    When instance of model becomes referenced by another instance,
    inverse reference should be updated by server.
@@ -467,6 +583,16 @@
      (currently hardcoded for `scp` model)
    - [ ] publish events only for respective model under
      `<model>/events` entry point (requires addressing extension for
-     PubSub or multiple PubSubs)
+     PubSub or multiple PubSubs; non-transparent mode only +
+     BigBrother role for «all models» event entry point)
+   - [ ] check permissions (if we want to serve associated commits in
+     event messages, per-model canRead may be not enough (what if
+     listener has no access to certain fields and we can't strip
+     commit for every listener personally))
    - [ ] possibly use native Redis' publish/subscribe mechanism
-     
+** TODO Support search in transparent mode
+   Currently only index fields of model are searched against, which
+   means that model definition must be available for searching (this
+   also required redundant `name` field in form definition), while in
+   fact redisSearch can be implemented using ModelName only. External
+   providers must support name-only operation as well.

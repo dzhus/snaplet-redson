@@ -12,7 +12,8 @@ Can be used as Backbone.sync backend.
 
 module Snap.Snaplet.Redson 
     ( Redson
-    , redsonInit)
+    , redsonInit
+    )
 
 where
 
@@ -26,8 +27,8 @@ import Data.Aeson as A
 import Data.Char (isDigit)
 
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Lazy as LB (ByteString, readFile)
-import qualified Data.ByteString.UTF8 as BU (fromString, toString)
+import qualified Data.ByteString.Lazy as LB (ByteString)
+import qualified Data.ByteString.UTF8 as BU (toString)
 
 import Data.Configurator
 
@@ -50,18 +51,17 @@ import qualified Network.WebSockets.Util.PubSub as PS
 
 import Database.Redis hiding (auth)
 
-import System.EasyFile
 
 import qualified Snap.Snaplet.Redson.Snapless.CRUD as CRUD
 import Snap.Snaplet.Redson.Snapless.Metamodel
+import Snap.Snaplet.Redson.Snapless.Metamodel.Loader (loadModels)
 import Snap.Snaplet.Redson.Permissions
 import Snap.Snaplet.Redson.Search
 import Snap.Snaplet.Redson.Util
 
+
 ------------------------------------------------------------------------------
 -- | Redson snaplet state type.
---
--- *TODO*: Use HashMap to store models?
 data Redson b = Redson
              { _database :: Snaplet RedisDB
              , auth :: Lens b (Snaplet (AuthManager b))
@@ -157,11 +157,13 @@ modelMessage event = \model id ->
     in
       DataMessage $ Text $ A.encode $ M.fromList response
 
+
 -- | Model instance creation message.
 creationMessage :: ModelName
                 -> CRUD.InstanceId
                 -> Network.WebSockets.Message p
 creationMessage = modelMessage "create"
+
 
 -- | Model instance deletion message.
 deletionMessage :: ModelName
@@ -334,6 +336,7 @@ modelEvents = ifTop $ do
                                   acceptRequest r
                                   PS.subscribe ps)
 
+
 ------------------------------------------------------------------------------
 -- | Serve JSON metamodel with respect to current user and field
 -- permissions.
@@ -347,6 +350,7 @@ metamodel = ifTop $ do
       Just m -> do
         modifyResponse $ setContentType "application/json"
         writeLBS (A.encode $ stripModel au m)
+
 
 ------------------------------------------------------------------------------
 -- | Serve JSON array of readable models to user. Every array element
@@ -385,7 +389,7 @@ defaultSearchLimit = 100
 -- | Serve model instances which have index values containing supplied
 -- search parameters.
 --
--- TODO Allow to request only subset of fields and serve them in array.
+-- Currently not available in transparent mode.
 search :: Handler b (Redson b) ()
 search = 
     let
@@ -395,6 +399,7 @@ search =
         fetchInstance id key = runRedisDB database $ do
                                  Right r <- hgetall key
                                  return $ (M.fromList $ ("id", id):r)
+        comma = 0x2c
     in
       ifTop $ withCheckSecurity $ \_ mdl -> do
         case mdl of
@@ -407,6 +412,8 @@ search =
               mType <- getParam "_matchType"
               sType <- getParam "_searchType"
               iLimit <- getParam "_limit"
+              outFields <- (\p -> maybe [] (B.split comma) p) <$>
+                           getParam "_fields"
 
               patFunction <- return $ case mType of
                                Just "p"  -> prefixMatch
@@ -437,6 +444,7 @@ search =
                                                   Just (i, s))
                              (indices m)
 
+              -- For every term, get list of ids which match it
               termIds <- runRedisDB database $
                          redisSearch m (catMaybes indexValues) patFunction
 
@@ -445,12 +453,18 @@ search =
                 [] -> writeLBS $ A.encode ([] :: [Value])
                 tids -> do
                       -- Finally, list of matched instances
-                      instances <- mapM (\id -> fetchInstance id $
-                                                CRUD.instanceKey mname id)
-                                   (searchType tids)
-                      writeLBS $ A.encode (take itemLimit instances)
+                      instances <- take itemLimit <$> 
+                                   mapM (\id -> fetchInstance id $
+                                         CRUD.instanceKey mname id)
+                                  (searchType tids)
+                      -- If _fields provided, leave only requested
+                      -- fields and serve array of arrays. Otherwise,
+                      -- serve array of objects.
+                      case outFields of
+                        [] -> writeLBS $ A.encode instances
+                        _ -> writeLBS $ A.encode $
+                             map (flip CRUD.onlyFields outFields) instances
               return ()
-
 
 
 -----------------------------------------------------------------------------
@@ -466,40 +480,6 @@ routes = [ (":model/timeline", method GET timeline)
          , (":model/:id", method DELETE delete)
          , (":model/search/", method GET search)
          ]
-
-
--- | Build metamodel name from its file path.
-pathToModelName :: FilePath -> ModelName
-pathToModelName filepath = BU.fromString $ takeBaseName filepath
-
-
--- | Read all models from directory to a map, splicing group fields.
---
--- TODO: Perhaps rely on special directory file which explicitly lists
--- all models.
-loadModels :: FilePath -- ^ Models directory
-           -> FilePath -- ^ Group definitions file
-           -> IO (M.Map ModelName Model)
-loadModels directory groupsFile =
-    let
-        parseFile :: FromJSON a => FilePath -> IO a
-        parseFile filename = do
-              j <- LB.readFile filename
-              case (A.decode j) of
-                Just obj -> return obj
-                Nothing -> error $ "Could not parse " ++ filename
-    in
-      do
-        dirEntries <- getDirectoryContents directory
-        -- Leave out non-files
-        mdlFiles <- filterM doesFileExist
-                 (map (\f -> directory ++ "/" ++ f) dirEntries)
-        groups <- parseFile groupsFile
-        mdls <- mapM parseFile mdlFiles
-        -- Splice groups & cache indices for served models
-        return $ M.fromList $
-               zip (map pathToModelName mdlFiles)
-                   (map (cacheIndices . spliceGroups groups) mdls)
 
 
 ------------------------------------------------------------------------------
