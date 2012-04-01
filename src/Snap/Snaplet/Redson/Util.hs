@@ -10,7 +10,11 @@ module Snap.Snaplet.Redson.Util where
 
 import Control.Applicative
 
+import Data.Char (isDigit)
+
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.UTF8 as BU (toString)
+
 import Data.Maybe
 
 import Snap.Core
@@ -19,6 +23,20 @@ import Snap.Core
 -- | Get parameter value from Request or return empty string
 fromParam :: MonadSnap m => ByteString -> m ByteString
 fromParam p = fromMaybe "" <$> getParam p
+
+
+------------------------------------------------------------------------------
+-- | Get integer parameter value from Request or return default value.
+fromIntParam :: MonadSnap m => ByteString -> Int -> m Int
+fromIntParam p def = do
+  i <- getParam p
+  return $ case i of
+      Just b -> let
+          s = BU.toString b
+          in
+            if (all isDigit s) then (read s)
+            else def
+      _ -> def
 
 
 data Error = Error { code :: Int

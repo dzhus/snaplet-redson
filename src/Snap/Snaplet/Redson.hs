@@ -24,11 +24,8 @@ import Data.Functor
 
 import Data.Aeson as A
 
-import Data.Char (isDigit)
-
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB (ByteString)
-import qualified Data.ByteString.UTF8 as BU (toString)
 
 import Data.Configurator
 
@@ -411,7 +408,6 @@ search =
               -- TODO: Mark these field names as reserved
               mType <- getParam "_matchType"
               sType <- getParam "_searchType"
-              iLimit <- getParam "_limit"
               outFields <- (\p -> maybe [] (B.split comma) p) <$>
                            getParam "_fields"
 
@@ -425,13 +421,7 @@ search =
                                Just "or"  -> unionAll
                                _          -> intersectAll
 
-              itemLimit   <- return $ case iLimit of
-                               Just b -> let
-                                            s = BU.toString b
-                                         in
-                                           if (all isDigit s) then (read s)
-                                           else defaultSearchLimit
-                               _      -> defaultSearchLimit
+              itemLimit   <- fromIntParam "_limit" defaultSearchLimit
 
               -- Produce Just SearchTerm
               indexValues <- mapM (\(i, c) -> do
