@@ -35,7 +35,7 @@ bug-reports:         https://github.com/dzhus/snaplet-redson/issues/
 license:             BSD3
 license-file:        LICENSE
 author:              Dmitry Dzhus
-maintainer:          <dima@dzhus.org>
+maintainer:          dima@dzhus.org
 category:            Web, Snap
 build-type:          Simple
 cabal-version:       >=1.8
