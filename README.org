@@ -2,8 +2,8 @@
 
 * Overview
   This snaplet provides create-read-update-delete operations for any
-  JSON objects with Redis storage. Role-based permissions system is
-  supported.
+  JSON objects with Redis storage. JSON objects are mapped to Redis
+  hashes. Role-based permissions system is supported.
 
   Primary notion of Redson is a model, or form, which is a named
   collection of fields with certain extra annotations. Every filled
