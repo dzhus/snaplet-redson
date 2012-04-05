@@ -9,7 +9,10 @@
   collection of fields with certain extra annotations. Every filled
   form («instance of model») has unique ID when stored in Redis.
 
-  Models must be defined prior to usage with special syntax.
+  Models must be defined prior to usage with special syntax, which may
+  also be requested by client code to build interface for models
+  (using JavaScript templating, for example).
+  
   Transparent mode is supported in which model definitions are not
   checked, but permissions engine is unavailable as well. Certain
   transformations may be applied to model definition by server and

@@ -184,6 +184,7 @@ instance FromJSON Application where
     parseJSON _          = error "Could not parse application entry"
 
 
+-- | A named group of fields.
 type Groups = M.Map B.ByteString [Field]
 
 
@@ -197,8 +198,8 @@ groupFieldName :: FieldName
 groupFieldName parent field = B.concat [parent, "_", field]
 
 
--- | Replace all model fields having `group` type with actual group
--- fields.
+-- | Replace all model fields having `groupName` annotation with
+-- actual group fields.
 spliceGroups :: Groups -> Model -> Model
 spliceGroups groups model =
     let

@@ -473,7 +473,18 @@ routes = [ (":model/timeline", method GET timeline)
 
 
 ------------------------------------------------------------------------------
--- | Connect to Redis and set routes.
+-- | Initialize Redson. AuthManager from parent snaplet is required.
+--
+-- Connect to Redis, read configuration and set routes.
+--
+-- > appInit :: SnapletInit MyApp MyApp
+-- > appInit = makeSnaplet "app" "App with Redson" Nothing $
+-- >           do
+-- >             r <- nestSnaplet "_" redson $ redsonInit auth
+-- >             s <- nestSnaplet "session" session $ initCookieSessionManager
+-- >                                                  sesKey "_session" sessionTimeout
+-- >             a <- nestSnaplet "auth" auth $ initJsonFileAuthManager defAuthSettings
+-- >             return $ MyApp r s a
 redsonInit :: Lens b (Snaplet (AuthManager b))
            -> SnapletInit b (Redson b)
 redsonInit topAuth = makeSnaplet

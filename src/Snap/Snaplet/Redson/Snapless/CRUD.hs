@@ -2,7 +2,8 @@
 
 {-|
 
-Snap-agnostic low-level CRUD operations.
+Snap-agnostic low-level CRUD operations. No model definitions are used
+on this level. Instead, objects must be 
 
 This module may be used for batch uploading of database data.
 
