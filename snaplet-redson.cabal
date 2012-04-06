@@ -63,7 +63,7 @@ library
     base                == 4.*,
     bytestring          == 0.9.*,
     configurator        == 0.2.*,
-    containers          == 0.4.*,
+    containers          >= 0.4.1 && < 0.5,
     data-lens           >= 2.0.1 && < 2.1,
     data-lens-template  == 2.1.*,
     easy-file           == 0.1.*,
