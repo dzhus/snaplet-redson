@@ -17,6 +17,7 @@ module Snap.Snaplet.Redson
 
 where
 
+import qualified Prelude (id)
 import Prelude hiding (concat, FilePath, id)
 
 import Control.Monad.State hiding (put)
@@ -423,20 +424,14 @@ search =
 
               itemLimit   <- fromIntParam "_limit" defaultSearchLimit
 
+              query       <- fromMaybe "" <$> getParam "q"
               -- Produce Just SearchTerm
-              indexValues <- mapM (\(i, c) -> do
-                                     p <- getParam i
-                                     case p of
-                                       Nothing -> return Nothing
-                                       Just s -> if c then return $
-                                                  Just (i, CRUD.collate s)
-                                                 else return $
-                                                  Just (i, s))
-                             (indices m)
+              let collate c = if c then CRUD.collate else Prelude.id
+              let indexValues = map (mapSnd (`collate` query)) $ indices m
 
               -- For every term, get list of ids which match it
               termIds <- runRedisDB database $
-                         redisSearch m (catMaybes indexValues) patFunction
+                         redisSearch m indexValues patFunction
 
               modifyResponse $ setContentType "application/json"
               case (filter (not . null) termIds) of
@@ -454,8 +449,10 @@ search =
                         [] -> writeLBS $ A.encode instances
                         _ -> writeLBS $ A.encode $
                              map (flip CRUD.onlyFields outFields) instances
-              return ()
 
+
+mapSnd :: (b -> c) -> (a, b) -> (a, c)
+mapSnd f (a, b) = (a, f b)
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.
