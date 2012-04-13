@@ -106,7 +106,9 @@ withAuth :: (MonadState (Redson b1) (m b1 v), MonadSnaplet m) =>
             m b1 (AuthManager b1) b -> m b1 v b
 withAuth action = do
   am <- gets auth
-  return =<< withTop am action
+  withTop am action
+-- Pointfree is more concise but less readable
+-- withAuth = (gets auth >>=) . flip withTop
 
 
 ------------------------------------------------------------------------------
@@ -173,7 +175,7 @@ deletionMessage = modelMessage "delete"
 ------------------------------------------------------------------------------
 -- | Encode Redis HGETALL reply to B.ByteString with JSON.
 commitToJson :: Commit -> LB.ByteString
-commitToJson r = A.encode r
+commitToJson = A.encode
 
 
 ------------------------------------------------------------------------------
@@ -186,16 +188,9 @@ commitToJson r = A.encode r
 -- fail.
 jsonToCommit :: LB.ByteString -> Maybe Commit
 jsonToCommit s =
-    let
-        j = A.decode s
-    in
-      case j of
-        Nothing -> Nothing
-        Just m ->
-             -- Omit fields with null values and "id" key
-            Just (M.filterWithKey 
-                       (\k _ -> k /= "id")
-                       m)
+    -- Omit fields with null values and "id" key
+    M.filterWithKey (const (/= "id"))
+    <$> A.decode s
 
 
 ------------------------------------------------------------------------------
@@ -225,10 +220,9 @@ post = ifTop $ do
         -- the response SHOULD be 201 (Created) and contain an entity which
         -- describes the status of the request and refers to the new
         -- resource
-        modifyResponse $ (setContentType "application/json" . setResponseCode 201)
+        modifyResponse $ setContentType "application/json" . setResponseCode 201
         -- Tell client new instance id in response JSON.
         writeLBS $ A.encode $ M.insert "id" newId commit
-        return ()
 
 
 ------------------------------------------------------------------------------
@@ -245,8 +239,7 @@ read' = ifTop $ do
          handleError notFound
 
     modifyResponse $ setContentType "application/json"
-    writeLBS $ commitToJson $ (filterUnreadable au mdl (M.fromList r))
-    return ()
+    writeLBS $ commitToJson $ filterUnreadable au mdl (M.fromList r)
 
 
 ------------------------------------------------------------------------------
@@ -270,7 +263,6 @@ put = ifTop $ do
         Right _ <- runRedisDB database $ 
            CRUD.update mname id j (maybe [] indices mdl)
         modifyResponse $ setResponseCode 204
-        return ()
 
 
 ------------------------------------------------------------------------------
@@ -368,8 +360,8 @@ listModels = ifTop $ do
         Nothing -> handleError unauthorized >> return []
         -- Leave only readable models.
         Just user ->
-            gets (filter (\(_, m) -> elem GET $
-                                     getModelPermissions (Right user) m)
+            gets (filter (elem GET
+                          . getModelPermissions (Right user) . snd)
                   . M.toList . models)
   modifyResponse $ setContentType "application/json"
   writeLBS (A.encode $ 
@@ -409,15 +401,15 @@ search =
               -- TODO: Mark these field names as reserved
               mType <- getParam "_matchType"
               sType <- getParam "_searchType"
-              outFields <- (\p -> maybe [] (B.split comma) p) <$>
+              outFields <- maybe [] (B.split comma) <$>
                            getParam "_fields"
 
-              patFunction <- return $ case mType of
+              let patFunction = case mType of
                                Just "p"  -> prefixMatch
                                Just "s"  -> substringMatch
                                _         -> prefixMatch
 
-              searchType  <- return $ case sType of
+              let searchType  = case sType of
                                Just "and" -> intersectAll
                                Just "or"  -> unionAll
                                _          -> intersectAll
@@ -448,7 +440,7 @@ search =
                       case outFields of
                         [] -> writeLBS $ A.encode instances
                         _ -> writeLBS $ A.encode $
-                             map (flip CRUD.onlyFields outFields) instances
+                             map (`CRUD.onlyFields` outFields) instances
 
 
 mapSnd :: (b -> c) -> (a, b) -> (a, c)

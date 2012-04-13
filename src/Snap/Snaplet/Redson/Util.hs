@@ -13,7 +13,7 @@ import Control.Applicative
 import Data.Char (isDigit)
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString.UTF8 as BU (toString)
+import qualified Data.ByteString.Char8 as B8 (readInt)
 
 import Data.Maybe
 
@@ -30,12 +30,8 @@ fromParam p = fromMaybe "" <$> getParam p
 fromIntParam :: MonadSnap m => ByteString -> Int -> m Int
 fromIntParam p def = do
   i <- getParam p
-  return $ case i of
-      Just b -> let
-          s = BU.toString b
-          in
-            if (all isDigit s) then (read s)
-            else def
+  return $ case i >>= B8.readInt of
+      Just (j, "") -> j
       _ -> def
 
 

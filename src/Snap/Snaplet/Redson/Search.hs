@@ -74,5 +74,4 @@ redisSearch model searchTerms patFunction =
               return ids
      in
        -- Try to get search results for every index field
-       mapM (\s -> getTermIds (patFunction mname s))
-            searchTerms
+       mapM (getTermIds . (patFunction mname)) searchTerms

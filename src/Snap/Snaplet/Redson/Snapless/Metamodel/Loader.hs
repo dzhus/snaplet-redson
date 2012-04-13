@@ -47,15 +47,11 @@ loadModel :: FilePath
           -> Groups 
           -- ^ Group definitions
           -> IO (Maybe Model)
-loadModel modelFile groups =
-    do
-      mres <- parseFile modelFile
-      return $ case mres of
-                 Just model -> Just $ 
-                               cacheIndices $
-                               doApplications $
-                               spliceGroups groups model
-                 Nothing -> Nothing
+loadModel modelFile groups
+    =  (fmap $ cacheIndices
+             . doApplications
+             . spliceGroups groups)
+    <$> parseFile modelFile
 
 
 -- | Build metamodel name from its file path.
@@ -75,7 +71,7 @@ loadModels directory groupsFile =
         dirEntries <- getDirectoryContents directory
         -- Leave out non-files
         mdlFiles <- filterM doesFileExist
-                 (map (\f -> directory ++ "/" ++ f) dirEntries)
+                 (map (directory </>) dirEntries)
         gs <- loadGroups groupsFile
         case gs of
           Just groups -> do
