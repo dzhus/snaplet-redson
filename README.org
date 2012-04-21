@@ -68,7 +68,7 @@
 **** name
 
      Field object must include `name` key which is the internal name of
-     the field.
+     the field. Name is alphanumeric string.
 
      `class` cannot be used as a field name.
 

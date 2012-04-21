@@ -30,7 +30,7 @@ type FieldValue = B.ByteString
 type FieldIndex = (FieldName, Bool)
 
 
--- | List of field key-value pairs.
+-- | List of field key-value pairs, or contents of model isntance.
 --
 -- Suitable for using with 'Database.Redis.hmset'.
 type Commit = M.Map FieldName FieldValue
