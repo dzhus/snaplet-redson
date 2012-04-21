@@ -77,7 +77,7 @@ loadModels directory groupsFile =
           Just groups -> do
                   mdls <- mapM (\m -> do
                                   mres <- loadModel m groups
-                                  return $ case mres of
+                                  return $! case mres of
                                     Just mdl -> mdl
                                     Nothing -> error $ "Could not parse " ++ m
                                ) mdlFiles
