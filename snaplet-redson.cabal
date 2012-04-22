@@ -73,6 +73,5 @@ library
     snap-core           == 0.8.*,
     snaplet-redis       == 0.1.*,
     text                == 0.11.*,
-    utf8-string         == 0.3.*,
     websockets          == 0.6.*,
     websockets-snap     == 0.6.*

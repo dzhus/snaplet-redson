@@ -31,10 +31,9 @@ import Data.Functor
 import Data.Maybe
 
 import Data.Char
-import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as B
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as E
-import qualified Data.ByteString.UTF8 as BU (fromString)
 import qualified Data.Map as M
 
 import Database.Redis
@@ -49,15 +48,6 @@ type InstanceId = B.ByteString
 -- | Build Redis key given model name and instance id
 instanceKey :: ModelName -> InstanceId -> B.ByteString
 instanceKey model id = B.concat [model, ":", id]
-
-
-------------------------------------------------------------------------------
--- | Cut instance model and id from Redis key
---
--- >>> keyToId "case:32198"
--- 32198
-keyToId :: B.ByteString -> InstanceId
-keyToId key = B.tail $ B.dropWhile (/= 0x3a) key
 
 
 ------------------------------------------------------------------------------
@@ -164,7 +154,7 @@ create :: ModelName           -- ^ Model name
 create mname commit findices = do
   -- Take id from global:model:id
   Right n <- incr $ modelIdKey mname
-  newId <- return $ (BU.fromString . show) n
+  newId <- return $ (B.pack . show) n
 
   -- Save new instance
   _ <- hmset (instanceKey mname newId) (M.toList commit)
