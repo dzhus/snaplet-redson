@@ -11,6 +11,7 @@ This module may be used for batch uploading of database data.
 module Snap.Snaplet.Redson.Snapless.CRUD
     ( -- * CRUD operations
       create
+    , read
     , update
     , delete
     -- * Redis helpers
@@ -24,7 +25,7 @@ module Snap.Snaplet.Redson.Snapless.CRUD
 
 where
 
-import Prelude hiding (id)
+import Prelude hiding (id, read)
 
 import Control.Monad.State
 import Data.Functor
@@ -45,19 +46,19 @@ type InstanceId = B.ByteString
 
 
 ------------------------------------------------------------------------------
--- | Build Redis key given model name and instance id
+-- | Build Redis key given model name and instance id.
 instanceKey :: ModelName -> InstanceId -> B.ByteString
 instanceKey model id = B.concat [model, ":", id]
 
 
 ------------------------------------------------------------------------------
--- | Get Redis key which stores id counter for model
+-- | Get Redis key which stores id counter for model.
 modelIdKey :: ModelName -> B.ByteString
 modelIdKey model = B.concat ["global:", model, ":id"]
 
 
 ------------------------------------------------------------------------------
--- | Get Redis key which stores timeline for model
+-- | Get Redis key which stores timeline for model.
 modelTimeline :: ModelName -> B.ByteString
 modelTimeline model = B.concat ["global:", model, ":timeline"]
 
@@ -165,7 +166,16 @@ create mname commit findices = do
 
 
 ------------------------------------------------------------------------------
--- | Modify existing instance in Redis, updating indices
+-- | Read existing instance from Redis.
+read :: ModelName
+     -> InstanceId
+     -> Redis (Either Reply Commit)
+read mname id = (fmap M.fromList) <$> hgetall key
+    where
+      key = instanceKey mname id
+
+------------------------------------------------------------------------------
+-- | Modify existing instance in Redis, updating indices.
 --
 -- TODO: Handle non-existing instance as error here?
 update :: ModelName

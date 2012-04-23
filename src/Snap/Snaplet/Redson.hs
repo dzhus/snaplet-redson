@@ -18,10 +18,10 @@ module Snap.Snaplet.Redson
 where
 
 import qualified Prelude (id)
-import Prelude hiding (concat, FilePath, id)
+import Prelude hiding (concat, FilePath, id, read)
 
+import Control.Applicative
 import Control.Monad.State hiding (put)
-import Data.Functor
 
 import Data.Aeson as A
 
@@ -82,15 +82,15 @@ getModelName = fromParam "model"
 
 ------------------------------------------------------------------------------
 -- | Extract model instance id from request parameter.
-getModelId:: MonadSnap m => m CRUD.InstanceId
-getModelId = fromParam "id"
-
+getInstanceId:: MonadSnap m => m CRUD.InstanceId
+getInstanceId = fromParam "id"
 
 
 ------------------------------------------------------------------------------
 -- | Extract model instance Redis key from request parameters.
-getInstanceKey :: MonadSnap m => m B.ByteString
-getInstanceKey = liftM2 CRUD.instanceKey getModelName getModelId
+getInstanceKey :: MonadSnap m => m (ModelName, CRUD.InstanceId)
+getInstanceKey = (,) <$> getModelName <*> getInstanceId
+
 
 ------------------------------------------------------------------------------
 -- | Try to get Model for current request.
@@ -104,11 +104,7 @@ getModel = liftM2 M.lookup getModelName (gets models)
 -- | Perform action with AuthManager.
 withAuth :: (MonadState (Redson b1) (m b1 v), MonadSnaplet m) =>
             m b1 (AuthManager b1) b -> m b1 v b
-withAuth action = do
-  am <- gets auth
-  withTop am action
--- Pointfree is more concise but less readable
--- withAuth = (gets auth >>=) . flip withTop
+withAuth = (gets auth >>=) . flip withTop
 
 
 ------------------------------------------------------------------------------
@@ -227,19 +223,18 @@ post = ifTop $ do
 
 ------------------------------------------------------------------------------
 -- | Read instance from Redis.
-read' :: Handler b (Redson b) ()
-read' = ifTop $ do
+get' :: Handler b (Redson b) ()
+get' = ifTop $ do
   withCheckSecurity $ \au mdl -> do
-    key <- getInstanceKey
-    r <- runRedisDB database $ do
-      Right r <- hgetall key
-      return r
+    (mname, id) <- getInstanceKey
+    
+    Right r <- runRedisDB database $ CRUD.read mname id
 
-    when (null r) $
+    when (M.null r) $
          handleError notFound
 
     modifyResponse $ setContentType "application/json"
-    writeLBS $ commitToJson $ filterUnreadable au mdl (M.fromList r)
+    writeLBS $ commitToJson $ filterUnreadable au mdl r
 
 
 ------------------------------------------------------------------------------
@@ -258,7 +253,7 @@ put = ifTop $ do
         when (not $ checkWrite au mdl j) $
              handleError forbidden
 
-        id <- getModelId
+        id <- getInstanceId
         mname <- getModelName        
         Right _ <- runRedisDB database $ 
            CRUD.update mname id j (maybe [] indices mdl)
@@ -270,9 +265,10 @@ put = ifTop $ do
 delete :: Handler b (Redson b) ()
 delete = ifTop $ do
   withCheckSecurity $ \_ mdl -> do
-    id <- getModelId
     mname <- getModelName
-    key <- getInstanceKey
+    id <- getInstanceId
+
+    let key = CRUD.instanceKey mname id
 
     r <- runRedisDB database $ do
       -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.7
@@ -454,7 +450,7 @@ routes = [ (":model/timeline", method GET timeline)
          , (":model/model", method GET metamodel)
          , ("_models", method GET listModels)
          , (":model", method POST post)
-         , (":model/:id", method GET read')
+         , (":model/:id", method GET get')
          , (":model/:id", method PUT put)
          , (":model/:id", method DELETE delete)
          , (":model/search/", method GET search)
