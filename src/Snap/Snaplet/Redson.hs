@@ -175,21 +175,6 @@ commitToJson = A.encode
 
 
 ------------------------------------------------------------------------------
--- | Decode B.ByteString with JSON to map of hash keys & values for
--- Redis HMSET (still to be `toList`-ed).
---
--- Return Nothing if parsing failed.
---
--- Note that if JSON object contains `null` values, conversion will
--- fail.
-jsonToCommit :: LB.ByteString -> Maybe Commit
-jsonToCommit s =
-    -- Omit fields with null values and "id" key
-    M.filterWithKey (const (/= "id"))
-    <$> A.decode s
-
-
-------------------------------------------------------------------------------
 -- | Handle instance creation request
 --
 -- *TODO*: Use readRequestBody
@@ -441,6 +426,7 @@ search =
 
 mapSnd :: (b -> c) -> (a, b) -> (a, c)
 mapSnd f (a, b) = (a, f b)
+
 
 -----------------------------------------------------------------------------
 -- | CRUD routes for models.

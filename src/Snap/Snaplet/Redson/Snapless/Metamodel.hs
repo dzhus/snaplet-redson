@@ -11,6 +11,7 @@ import Control.Applicative
 
 import Data.Aeson
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Lazy as LB
 
 import Data.Lens.Common
 import Data.Lens.Template
@@ -212,6 +213,7 @@ spliceGroups groups model =
     in
         model{fields = concatMap updateNames $ fields model}
 
+
 -- | Perform all applications in model.
 doApplications :: Model -> Model
 doApplications model =
@@ -267,3 +269,19 @@ cacheIndices model =
               _ -> indexList
     in
       model{indices = foldl' maybeCacheIndex [] (fields model)}
+
+
+------------------------------------------------------------------------------
+-- | Decode B.ByteString with JSON containing hash of commit keys and
+-- values to actual 'Commit'.
+--
+-- Return Nothing if parsing failed.
+--
+-- @id@ key is omitted from result.
+-- 
+-- Note that if JSON object contains `null` values, conversion will
+-- fail.
+jsonToCommit :: LB.ByteString -> Maybe Commit
+jsonToCommit s =
+    M.filterWithKey (const (/= "id"))
+    <$> decode s
