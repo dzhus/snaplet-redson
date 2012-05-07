@@ -1,6 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-|
 
@@ -31,7 +30,6 @@ import qualified Data.ByteString.Lazy as LB (ByteString)
 import Data.Configurator
 
 import Data.Lens.Common
-import Data.Lens.Template
 
 import Data.List (foldl1', intersect, union)
 import qualified Data.Map as M
@@ -56,51 +54,8 @@ import Snap.Snaplet.Redson.Snapless.Metamodel.Loader (loadModels)
 import Snap.Snaplet.Redson.Permissions
 import Snap.Snaplet.Redson.Search
 import Snap.Snaplet.Redson.Util
+import Snap.Snaplet.Redson.Internals
 
-
-type Hook b = FieldValue -> Commit -> Handler b (Redson b) Commit
-type HookMap b = M.Map ModelName (M.Map FieldName [Hook b])
-
-------------------------------------------------------------------------------
--- | Redson snaplet state type.
-data Redson b = Redson
-             { _database :: Snaplet RedisDB
-             , auth :: Lens b (Snaplet (AuthManager b))
-             , events :: PS.PubSub Hybi10
-             , models :: M.Map ModelName Model
-             , transparent :: Bool
-             -- ^ Operate in transparent mode (not security checks).
-             , hookMap :: HookMap b
-             }
-
-makeLens ''Redson
-
-------------------------------------------------------------------------------
--- | Extract model name from request path parameter.
---
--- Note that this works for transparent mode even if model is unknown.
-getModelName:: MonadSnap m => m ModelName
-getModelName = fromParam "model"
-
-
-------------------------------------------------------------------------------
--- | Extract model instance id from request parameter.
-getInstanceId:: MonadSnap m => m CRUD.InstanceId
-getInstanceId = fromParam "id"
-
-
-------------------------------------------------------------------------------
--- | Extract model instance Redis key from request parameters.
-getInstanceKey :: MonadSnap m => m (ModelName, CRUD.InstanceId)
-getInstanceKey = (,) <$> getModelName <*> getInstanceId
-
-
-------------------------------------------------------------------------------
--- | Try to get Model for current request.
---
--- TODO: Return special model for transparent-mode.
-getModel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Model)
-getModel = liftM2 M.lookup getModelName (gets models)
 
 
 ------------------------------------------------------------------------------
