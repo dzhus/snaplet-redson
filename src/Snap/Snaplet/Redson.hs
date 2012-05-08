@@ -17,18 +17,16 @@ module Snap.Snaplet.Redson
 
 where
 
-import Prelude hiding (concat, FilePath, id)
+import qualified Prelude (id)
+import Prelude hiding (concat, FilePath, id, read)
 
+import Control.Applicative
 import Control.Monad.State hiding (put)
-import Data.Functor
 
 import Data.Aeson as A
 
-import Data.Char (isDigit)
-
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as LB (ByteString)
-import qualified Data.ByteString.UTF8 as BU (toString)
 
 import Data.Configurator
 
@@ -84,15 +82,15 @@ getModelName = fromParam "model"
 
 ------------------------------------------------------------------------------
 -- | Extract model instance id from request parameter.
-getModelId:: MonadSnap m => m CRUD.InstanceId
-getModelId = fromParam "id"
-
+getInstanceId:: MonadSnap m => m CRUD.InstanceId
+getInstanceId = fromParam "id"
 
 
 ------------------------------------------------------------------------------
 -- | Extract model instance Redis key from request parameters.
-getInstanceKey :: MonadSnap m => m B.ByteString
-getInstanceKey = liftM2 CRUD.instanceKey getModelName getModelId
+getInstanceKey :: MonadSnap m => m (ModelName, CRUD.InstanceId)
+getInstanceKey = (,) <$> getModelName <*> getInstanceId
+
 
 ------------------------------------------------------------------------------
 -- | Try to get Model for current request.
@@ -106,9 +104,7 @@ getModel = liftM2 M.lookup getModelName (gets models)
 -- | Perform action with AuthManager.
 withAuth :: (MonadState (Redson b1) (m b1 v), MonadSnaplet m) =>
             m b1 (AuthManager b1) b -> m b1 v b
-withAuth action = do
-  am <- gets auth
-  return =<< withTop am action
+withAuth = (gets auth >>=) . flip withTop
 
 
 ------------------------------------------------------------------------------
@@ -175,29 +171,7 @@ deletionMessage = modelMessage "delete"
 ------------------------------------------------------------------------------
 -- | Encode Redis HGETALL reply to B.ByteString with JSON.
 commitToJson :: Commit -> LB.ByteString
-commitToJson r = A.encode r
-
-
-------------------------------------------------------------------------------
--- | Decode B.ByteString with JSON to map of hash keys & values for
--- Redis HMSET (still to be `toList`-ed).
---
--- Return Nothing if parsing failed.
---
--- Note that if JSON object contains `null` values, conversion will
--- fail.
-jsonToCommit :: LB.ByteString -> Maybe Commit
-jsonToCommit s =
-    let
-        j = A.decode s
-    in
-      case j of
-        Nothing -> Nothing
-        Just m ->
-             -- Omit fields with null values and "id" key
-            Just (M.filterWithKey 
-                       (\k _ -> k /= "id")
-                       m)
+commitToJson = A.encode
 
 
 ------------------------------------------------------------------------------
@@ -227,28 +201,25 @@ post = ifTop $ do
         -- the response SHOULD be 201 (Created) and contain an entity which
         -- describes the status of the request and refers to the new
         -- resource
-        modifyResponse $ (setContentType "application/json" . setResponseCode 201)
+        modifyResponse $ setContentType "application/json" . setResponseCode 201
         -- Tell client new instance id in response JSON.
         writeLBS $ A.encode $ M.insert "id" newId commit
-        return ()
 
 
 ------------------------------------------------------------------------------
 -- | Read instance from Redis.
-read' :: Handler b (Redson b) ()
-read' = ifTop $ do
+get' :: Handler b (Redson b) ()
+get' = ifTop $ do
   withCheckSecurity $ \au mdl -> do
-    key <- getInstanceKey
-    r <- runRedisDB database $ do
-      Right r <- hgetall key
-      return r
+    (mname, id) <- getInstanceKey
+    
+    Right r <- runRedisDB database $ CRUD.read mname id
 
-    when (null r) $
+    when (M.null r) $
          handleError notFound
 
     modifyResponse $ setContentType "application/json"
-    writeLBS $ commitToJson $ (filterUnreadable au mdl (M.fromList r))
-    return ()
+    writeLBS $ commitToJson $ filterUnreadable au mdl r
 
 
 ------------------------------------------------------------------------------
@@ -267,12 +238,11 @@ put = ifTop $ do
         when (not $ checkWrite au mdl j) $
              handleError forbidden
 
-        id <- getModelId
+        id <- getInstanceId
         mname <- getModelName        
         Right _ <- runRedisDB database $ 
            CRUD.update mname id j (maybe [] indices mdl)
         modifyResponse $ setResponseCode 204
-        return ()
 
 
 ------------------------------------------------------------------------------
@@ -280,9 +250,10 @@ put = ifTop $ do
 delete :: Handler b (Redson b) ()
 delete = ifTop $ do
   withCheckSecurity $ \_ mdl -> do
-    id <- getModelId
     mname <- getModelName
-    key <- getInstanceKey
+    id <- getInstanceId
+
+    let key = CRUD.instanceKey mname id
 
     r <- runRedisDB database $ do
       -- http://www.w3.org/Protocols/rfc2616/rfc2616-sec9.html#sec9.7
@@ -370,8 +341,8 @@ listModels = ifTop $ do
         Nothing -> handleError unauthorized >> return []
         -- Leave only readable models.
         Just user ->
-            gets (filter (\(_, m) -> elem GET $
-                                     getModelPermissions (Right user) m)
+            gets (filter (elem GET
+                          . getModelPermissions (Right user) . snd)
                   . M.toList . models)
   modifyResponse $ setContentType "application/json"
   writeLBS (A.encode $ 
@@ -411,42 +382,29 @@ search =
               -- TODO: Mark these field names as reserved
               mType <- getParam "_matchType"
               sType <- getParam "_searchType"
-              iLimit <- getParam "_limit"
-              outFields <- (\p -> maybe [] (B.split comma) p) <$>
+              outFields <- maybe [] (B.split comma) <$>
                            getParam "_fields"
 
-              patFunction <- return $ case mType of
+              let patFunction = case mType of
                                Just "p"  -> prefixMatch
                                Just "s"  -> substringMatch
                                _         -> prefixMatch
 
-              searchType  <- return $ case sType of
+              let searchType  = case sType of
                                Just "and" -> intersectAll
                                Just "or"  -> unionAll
                                _          -> intersectAll
 
-              itemLimit   <- return $ case iLimit of
-                               Just b -> let
-                                            s = BU.toString b
-                                         in
-                                           if (all isDigit s) then (read s)
-                                           else defaultSearchLimit
-                               _      -> defaultSearchLimit
+              itemLimit   <- fromIntParam "_limit" defaultSearchLimit
 
+              query       <- fromMaybe "" <$> getParam "q"
               -- Produce Just SearchTerm
-              indexValues <- mapM (\(i, c) -> do
-                                     p <- getParam i
-                                     case p of
-                                       Nothing -> return Nothing
-                                       Just s -> if c then return $
-                                                  Just (i, CRUD.collate s)
-                                                 else return $
-                                                  Just (i, s))
-                             (indices m)
+              let collate c = if c then CRUD.collate else Prelude.id
+              let indexValues = map (mapSnd (`collate` query)) $ indices m
 
               -- For every term, get list of ids which match it
               termIds <- runRedisDB database $
-                         redisSearch m (catMaybes indexValues) patFunction
+                         redisSearch m indexValues patFunction
 
               modifyResponse $ setContentType "application/json"
               case (filter (not . null) termIds) of
@@ -463,8 +421,11 @@ search =
                       case outFields of
                         [] -> writeLBS $ A.encode instances
                         _ -> writeLBS $ A.encode $
-                             map (flip CRUD.onlyFields outFields) instances
-              return ()
+                             map (`CRUD.onlyFields` outFields) instances
+
+
+mapSnd :: (b -> c) -> (a, b) -> (a, c)
+mapSnd f (a, b) = (a, f b)
 
 
 -----------------------------------------------------------------------------
@@ -475,7 +436,7 @@ routes = [ (":model/timeline", method GET timeline)
          , (":model/model", method GET metamodel)
          , ("_models", method GET listModels)
          , (":model", method POST post)
-         , (":model/:id", method GET read')
+         , (":model/:id", method GET get')
          , (":model/:id", method PUT put)
          , (":model/:id", method DELETE delete)
          , (":model/search/", method GET search)
@@ -483,7 +444,18 @@ routes = [ (":model/timeline", method GET timeline)
 
 
 ------------------------------------------------------------------------------
--- | Connect to Redis and set routes.
+-- | Initialize Redson. AuthManager from parent snaplet is required.
+--
+-- Connect to Redis, read configuration and set routes.
+--
+-- > appInit :: SnapletInit MyApp MyApp
+-- > appInit = makeSnaplet "app" "App with Redson" Nothing $
+-- >           do
+-- >             r <- nestSnaplet "_" redson $ redsonInit auth
+-- >             s <- nestSnaplet "session" session $ initCookieSessionManager
+-- >                                                  sesKey "_session" sessionTimeout
+-- >             a <- nestSnaplet "auth" auth $ initJsonFileAuthManager defAuthSettings
+-- >             return $ MyApp r s a
 redsonInit :: Lens b (Snaplet (AuthManager b))
            -> SnapletInit b (Redson b)
 redsonInit topAuth = makeSnaplet
