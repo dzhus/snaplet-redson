@@ -12,6 +12,7 @@ Can be used as Backbone.sync backend.
 module Snap.Snaplet.Redson
     ( Redson
     , redsonInit
+    , redsonInitWithHooks
     )
 
 where
@@ -431,10 +432,14 @@ routes = [ (":model/timeline", method GET timeline)
 -- >                                                  sesKey "_session" sessionTimeout
 -- >             a <- nestSnaplet "auth" auth $ initJsonFileAuthManager defAuthSettings
 -- >             return $ MyApp r s a
-redsonInit :: Lens b (Snaplet (AuthManager b))
+redsonInit:: Lens b (Snaplet (AuthManager b))
+           -> SnapletInit b (Redson b)
+redsonInit = `redsonInitWithHooks` M.empty
+
+redsonInitWithHooks :: Lens b (Snaplet (AuthManager b))
            -> HookMap b
            -> SnapletInit b (Redson b)
-redsonInit topAuth hooks = makeSnaplet
+redsonInitWithHooks topAuth hooks = makeSnaplet
                      "redson"
                      "CRUD for JSON data with Redis storage"
                      Nothing $

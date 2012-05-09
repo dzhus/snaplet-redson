@@ -68,3 +68,10 @@ getInstanceKey = (,) <$> getModelName <*> getInstanceId
 -- TODO: Return special model for transparent-mode.
 getModel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Model)
 getModel = M.lookup <$> getModelName <*> gets models
+
+
+------------------------------------------------------------------------------
+-- | Try to get Model with specified name.
+getModelNamed :: (MonadSnap m, MonadState (Redson b) m) => ModelName -> m (Maybe Model)
+getModelNamed mn = M.lookup mn <$> gets models
+

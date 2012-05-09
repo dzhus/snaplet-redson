@@ -1,5 +1,5 @@
 name:                snaplet-redson
-version:             0.1.0.0
+version:             0.1.1.0
 synopsis:            CRUD for JSON data with Redis storage
 
 description: This snaplet provides HTTP API to /c/reate, /r/ead,
