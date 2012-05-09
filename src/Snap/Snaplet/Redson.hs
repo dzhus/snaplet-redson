@@ -434,7 +434,7 @@ routes = [ (":model/timeline", method GET timeline)
 -- >             return $ MyApp r s a
 redsonInit:: Lens b (Snaplet (AuthManager b))
            -> SnapletInit b (Redson b)
-redsonInit = `redsonInitWithHooks` M.empty
+redsonInit = (`redsonInitWithHooks` M.empty)
 
 redsonInitWithHooks :: Lens b (Snaplet (AuthManager b))
            -> HookMap b
