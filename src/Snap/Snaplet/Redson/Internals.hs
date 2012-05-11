@@ -69,6 +69,9 @@ getInstanceKey = (,) <$> getModelName <*> getInstanceId
 getModel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Model)
 getModel = M.lookup <$> getModelName <*> gets models
 
+getModels :: (MonadSnap m, MonadState (Redson b) m) => m (M.Map ModelName Model)
+getModels = gets models
+
 
 ------------------------------------------------------------------------------
 -- | Try to get Model with specified name.
