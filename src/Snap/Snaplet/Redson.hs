@@ -219,7 +219,8 @@ put = ifTop $ do
         commit' <- applyHooks mname commit
         Right _ <- runRedisDB database $
            CRUD.update mname id commit' (maybe [] indices mdl)
-        modifyResponse $ setResponseCode 204
+        modifyResponse $ setContentType "application/json" . setResponseCode 206
+        writeLBS $ A.encode commit'
 
 
 ------------------------------------------------------------------------------
