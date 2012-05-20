@@ -163,10 +163,11 @@ post = ifTop $ do
              handleError forbidden
 
         mname <- getModelName
-        commit' <- applyHooks mname commit
+        let commit' = maybe commit (M.union commit . defaults) mdl 
+        commit'' <- applyHooks mname commit'
 
         Right newId <- runRedisDB database $
-           CRUD.create mname commit' (maybe [] indices mdl)
+           CRUD.create mname commit'' (maybe [] indices mdl)
 
         ps <- gets events
         liftIO $ PS.publish ps $ creationMessage mname newId
@@ -178,7 +179,7 @@ post = ifTop $ do
         -- resource
         modifyResponse $ setContentType "application/json" . setResponseCode 201
         -- Tell client new instance id in response JSON.
-        writeLBS $ A.encode $ M.insert "id" newId commit'
+        writeLBS $ A.encode $ M.insert "id" newId commit''
 
 
 ------------------------------------------------------------------------------
