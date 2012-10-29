@@ -89,6 +89,7 @@ makeLenses [''Application]
 data Model = Model { modelName      :: ModelName
                    , title          :: B.ByteString
                    , fields         :: [Field]
+                   , defaults       :: M.Map FieldName FieldValue
                    , applications   :: [Application]
                    , _canCreateM    :: Permissions
                    , _canReadM      :: Permissions
@@ -108,14 +109,15 @@ defaultFieldType = "text"
 
 instance FromJSON Model where
     parseJSON (Object v) = Model          <$>
-        v .: "name"                       <*>
-        v .: "title"                      <*>
-        v .: "fields"                     <*>
+        v .:  "name"                      <*>
+        v .:  "title"                     <*>
+        v .:  "fields"                    <*>
+        v .:? "defaults"     .!= M.empty  <*>
         v .:? "applications" .!= []       <*>
-        v .:? "canCreate" .!= Nobody      <*>
-        v .:? "canRead"   .!= Nobody      <*>
-        v .:? "canUpdate" .!= Nobody      <*>
-        v .:? "canDelete" .!= Nobody      <*>
+        v .:? "canCreate"    .!= Nobody   <*>
+        v .:? "canRead"      .!= Nobody   <*>
+        v .:? "canUpdate"    .!= Nobody   <*>
+        v .:? "canDelete"    .!= Nobody   <*>
         pure []
     parseJSON _          = error "Could not parse model description"
 
@@ -124,6 +126,7 @@ instance ToJSON Model where
       [ "name"       .= modelName mdl
       , "title"      .= title mdl
       , "fields"     .= fields mdl
+      , "defaults"   .= defaults mdl
       , "indices"    .= indices mdl
       , "canCreate"  .= _canCreateM mdl
       , "canRead"    .= _canReadM mdl
@@ -136,7 +139,7 @@ instance FromJSON Permissions where
     parseJSON (Bool True)  = return Everyone
     parseJSON (Bool False) = return Nobody
     parseJSON v@(Array _)  = Roles <$> parseJSON v
-    parseJSON _            = error "Could not permissions"
+    parseJSON _            = error "Could not parse permissions"
 
 instance ToJSON Permissions where
     toJSON Everyone  = Bool True

@@ -1,6 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-|
 
@@ -10,9 +9,10 @@ Can be used as Backbone.sync backend.
 
 -}
 
-module Snap.Snaplet.Redson 
+module Snap.Snaplet.Redson
     ( Redson
     , redsonInit
+    , redsonInitWithHooks
     )
 
 where
@@ -31,7 +31,6 @@ import qualified Data.ByteString.Lazy as LB (ByteString)
 import Data.Configurator
 
 import Data.Lens.Common
-import Data.Lens.Template
 
 import Data.List (foldl1', intersect, union)
 import qualified Data.Map as M
@@ -56,48 +55,8 @@ import Snap.Snaplet.Redson.Snapless.Metamodel.Loader (loadModels)
 import Snap.Snaplet.Redson.Permissions
 import Snap.Snaplet.Redson.Search
 import Snap.Snaplet.Redson.Util
+import Snap.Snaplet.Redson.Internals
 
-
-------------------------------------------------------------------------------
--- | Redson snaplet state type.
-data Redson b = Redson
-             { _database :: Snaplet RedisDB
-             , auth :: Lens b (Snaplet (AuthManager b))
-             , events :: PS.PubSub Hybi10
-             , models :: M.Map ModelName Model
-             , transparent :: Bool
-             -- ^ Operate in transparent mode (not security checks).
-             }
-
-makeLens ''Redson
-
-
-------------------------------------------------------------------------------
--- | Extract model name from request path parameter.
---
--- Note that this works for transparent mode even if model is unknown.
-getModelName:: MonadSnap m => m ModelName
-getModelName = fromParam "model"
-
-
-------------------------------------------------------------------------------
--- | Extract model instance id from request parameter.
-getInstanceId:: MonadSnap m => m CRUD.InstanceId
-getInstanceId = fromParam "id"
-
-
-------------------------------------------------------------------------------
--- | Extract model instance Redis key from request parameters.
-getInstanceKey :: MonadSnap m => m (ModelName, CRUD.InstanceId)
-getInstanceKey = (,) <$> getModelName <*> getInstanceId
-
-
-------------------------------------------------------------------------------
--- | Try to get Model for current request.
---
--- TODO: Return special model for transparent-mode.
-getModel :: (MonadSnap m, MonadState (Redson b) m) => m (Maybe Model)
-getModel = liftM2 M.lookup getModelName (gets models)
 
 
 ------------------------------------------------------------------------------
@@ -175,6 +134,20 @@ commitToJson = A.encode
 
 
 ------------------------------------------------------------------------------
+applyHooks :: ModelName -> Commit -> Handler b (Redson b) Commit
+applyHooks mname commit = do
+  hs <- gets hookMap
+  case M.lookup mname hs of
+    Nothing -> return commit
+    Just h  ->
+      let actions = M.intersectionWith (map . flip ($)) commit h
+      in  apply' commit actions
+  where
+    apply' c = foldM apply'' c . M.elems
+    apply''  = foldM (flip ($))
+
+
+------------------------------------------------------------------------------
 -- | Handle instance creation request
 --
 -- *TODO*: Use readRequestBody
@@ -190,8 +163,11 @@ post = ifTop $ do
              handleError forbidden
 
         mname <- getModelName
+        let commit' = maybe commit (M.union commit . defaults) mdl 
+        commit'' <- applyHooks mname commit'
+
         Right newId <- runRedisDB database $
-           CRUD.create mname commit (maybe [] indices mdl)
+           CRUD.create mname commit'' (maybe [] indices mdl)
 
         ps <- gets events
         liftIO $ PS.publish ps $ creationMessage mname newId
@@ -203,7 +179,7 @@ post = ifTop $ do
         -- resource
         modifyResponse $ setContentType "application/json" . setResponseCode 201
         -- Tell client new instance id in response JSON.
-        writeLBS $ A.encode $ M.insert "id" newId commit
+        writeLBS $ A.encode $ M.insert "id" newId commit''
 
 
 ------------------------------------------------------------------------------
@@ -212,7 +188,7 @@ get' :: Handler b (Redson b) ()
 get' = ifTop $ do
   withCheckSecurity $ \au mdl -> do
     (mname, id) <- getInstanceKey
-    
+
     Right r <- runRedisDB database $ CRUD.read mname id
 
     when (M.null r) $
@@ -234,15 +210,19 @@ put = ifTop $ do
     r <- jsonToCommit <$> getRequestBody
     case r of
       Nothing -> handleError serverError
-      Just j -> do
-        when (not $ checkWrite au mdl j) $
+      Just commit -> do
+        when (not $ checkWrite au mdl commit) $
              handleError forbidden
 
         id <- getInstanceId
-        mname <- getModelName        
-        Right _ <- runRedisDB database $ 
-           CRUD.update mname id j (maybe [] indices mdl)
-        modifyResponse $ setResponseCode 204
+        mname <- getModelName
+        commit' <- applyHooks mname commit
+        Right _ <- runRedisDB database $
+           CRUD.update mname id commit' (maybe [] indices mdl)
+        modifyResponse $ setContentType "application/json"
+        writeLBS $ A.encode $ M.differenceWith
+          (\a b -> if a == b then Nothing else Just a)
+          commit' commit
 
 
 ------------------------------------------------------------------------------
@@ -327,7 +307,7 @@ metamodel = ifTop $ do
 -- | Serve JSON array of readable models to user. Every array element
 -- is an object with fields "name" and "title". In transparent mode,
 -- serve all models.
--- 
+--
 -- TODO: Cache this.
 listModels :: Handler b (Redson b) ()
 listModels = ifTop $ do
@@ -345,9 +325,9 @@ listModels = ifTop $ do
                           . getModelPermissions (Right user) . snd)
                   . M.toList . models)
   modifyResponse $ setContentType "application/json"
-  writeLBS (A.encode $ 
-             map (\(n, m) -> M.fromList $ 
-                             [("name"::B.ByteString, n), 
+  writeLBS (A.encode $
+             map (\(n, m) -> M.fromList $
+                             [("name"::B.ByteString, n),
                               ("title", title m)])
              readables)
 
@@ -362,7 +342,7 @@ defaultSearchLimit = 100
 --
 -- Currently not available in transparent mode.
 search :: Handler b (Redson b) ()
-search = 
+search =
     let
         intersectAll = foldl1' intersect
         unionAll = foldl1' union
@@ -375,7 +355,7 @@ search =
       ifTop $ withCheckSecurity $ \_ mdl -> do
         case mdl of
           Nothing -> handleError notFound
-          Just m -> 
+          Just m ->
             let
                 mname = modelName m
             in do
@@ -411,7 +391,7 @@ search =
                 [] -> writeLBS $ A.encode ([] :: [Value])
                 tids -> do
                       -- Finally, list of matched instances
-                      instances <- take itemLimit <$> 
+                      instances <- take itemLimit <$>
                                    mapM (\id -> fetchInstance id $
                                          CRUD.instanceKey mname id)
                                   (searchType tids)
@@ -456,9 +436,14 @@ routes = [ (":model/timeline", method GET timeline)
 -- >                                                  sesKey "_session" sessionTimeout
 -- >             a <- nestSnaplet "auth" auth $ initJsonFileAuthManager defAuthSettings
 -- >             return $ MyApp r s a
-redsonInit :: Lens b (Snaplet (AuthManager b))
+redsonInit:: Lens b (Snaplet (AuthManager b))
            -> SnapletInit b (Redson b)
-redsonInit topAuth = makeSnaplet
+redsonInit = (`redsonInitWithHooks` M.empty)
+
+redsonInitWithHooks :: Lens b (Snaplet (AuthManager b))
+           -> HookMap b
+           -> SnapletInit b (Redson b)
+redsonInitWithHooks topAuth hooks = makeSnaplet
                      "redson"
                      "CRUD for JSON data with Redis storage"
                      Nothing $
@@ -481,4 +466,4 @@ redsonInit topAuth = makeSnaplet
 
             mdls <- liftIO $ loadModels mdlDir grpDef
             addRoutes routes
-            return $ Redson r topAuth p mdls transp
+            return $ Redson r topAuth p mdls transp hooks

@@ -10,8 +10,6 @@ module Snap.Snaplet.Redson.Util where
 
 import Control.Applicative
 
-import Data.Char (isDigit)
-
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B8 (readInt)
 
@@ -45,8 +43,7 @@ data Error = Error { code :: Int
 handleError :: MonadSnap m => Error -> m ()
 handleError err = do
     modifyResponse $ setResponseCode (code err)
-    r <- getResponse
-    finishWith r
+    getResponse >>= finishWith
 
 
 notFound :: Error
